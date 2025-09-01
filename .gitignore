@@ -1,0 +1,23 @@
+# 配置文件
+config.*
+!config.example.*
+
+
+# Python缓存
+*.pyc
+__pycache__/
+
+# 测试数据文件
+tests/test_*.json
+tests/*.json
+
+# IDE文件
+.vscode/
+.idea/
+
+# 日志文件
+*.log
+
+# 数据文件
+data/
+claude_accounts.json

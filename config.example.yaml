@@ -1,0 +1,62 @@
+# Claude监控系统配置文件
+# 按功能模块分类组织，结构更清晰
+
+# API数据源配置
+api:
+  base_url: "http://localhost:8000"     # API服务器基础URL
+  
+  # Claude账户数据API
+  claude:
+    bearer_token: "your_bearer_token_here"      # Claude API认证令牌
+    endpoint: "/admin/claude-accounts"          # Claude账户数据端点路径
+    timeout: 30                                 # 请求超时时间（秒）
+    retry_attempts: 3                          # 重试次数
+  
+  # API密钥使用数据API  
+  usage:
+    endpoint: "/admin/api-keys"                 # API密钥使用数据端点路径
+    timeout: 30
+    retry_attempts: 3
+
+# 数据存储配置
+storage:
+  claude_accounts_file: "claude_accounts.json"  # Claude账户数据文件
+  api_usage_file: "api_keys_usage.json"        # API使用情况数据文件
+  data_directory: "data"                        # 数据目录
+
+# 通知系统配置
+notification:
+  enabled: true                                # 是否启用通知
+  feishu:
+    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
+    enabled: true                              # 是否启用飞书通知
+    card_style: "rich"                         # 卡片样式：simple/rich
+
+# FastAPI服务器配置
+server:
+  host: "localhost"                            # 服务器地址
+  port: 8155                                   # 服务器端口
+  
+  # 认证配置
+  auth:
+    # api_key: "your_fastapi_access_key_here"    # API访问密钥
+    # api_secret: "your_fastapi_secret_key_here" # API密钥签名
+    # require_signature: false                   # 是否需要HMAC签名验证
+    simple_key: "your_simple_key_here"         # 简单URL参数验证密钥
+  
+  # 服务器运行配置
+  workers: 1                                   # 工作进程数
+  reload: false                                # 开发模式热重载
+  log_level: "info"                            # 日志级别
+
+# 系统配置
+system:
+  timezone: "Asia/Shanghai"                    # 时区设置
+  log_level: "INFO"                           # 系统日志级别
+  encoding: "utf-8"                           # 文件编码
+
+# 监控配置
+monitoring:
+  check_interval: 300                         # 检查间隔（秒）
+  rate_limit_threshold: 10                    # 限流阈值（分钟）
+  notification_cooldown: 300                  # 通知冷却时间（秒）
