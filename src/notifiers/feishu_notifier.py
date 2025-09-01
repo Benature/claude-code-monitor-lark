@@ -13,11 +13,14 @@ from larkpy import LarkBot
 from ..utils.config_loader import create_config_manager
 
 
-
 class FeishuNotifier:
 
-    def __init__(self, webhook_url: str, enabled: bool = True, 
-                 server_host: str = "localhost", server_port: int = 8155, simple_key: str = "key"):
+    def __init__(self,
+                 webhook_url: str,
+                 enabled: bool = True,
+                 server_host: str = "localhost",
+                 server_port: int = 8155,
+                 simple_key: str = "key"):
         """
         初始化飞书通知器
 
@@ -99,14 +102,17 @@ class FeishuNotifier:
         current_id = current_account.get('id')
         current_rate_status = current_account.get('rateLimitStatus', {})
         current_rate_limited = current_rate_status.get('isRateLimited', False)
-        current_minutes_remaining = current_rate_status.get('minutesRemaining', 0)
+        current_minutes_remaining = current_rate_status.get(
+            'minutesRemaining', 0)
 
         # 查找上一次相同账户的数据
         for prev_account in previous_accounts:
             if prev_account.get('id') == current_id:
                 prev_rate_status = prev_account.get('rateLimitStatus', {})
-                prev_rate_limited = prev_rate_status.get('isRateLimited', False)
-                prev_minutes_remaining = prev_rate_status.get('minutesRemaining', 0)
+                prev_rate_limited = prev_rate_status.get(
+                    'isRateLimited', False)
+                prev_minutes_remaining = prev_rate_status.get(
+                    'minutesRemaining', 0)
 
                 # 检查限流状态变化
                 if prev_rate_limited != current_rate_limited:
@@ -114,7 +120,7 @@ class FeishuNotifier:
                         f"账户 {current_id} 限流状态变化: {prev_rate_limited} -> {current_rate_limited}"
                     )
                     return True
-                
+
                 # 检查剩余时间变化（如果都处于限流状态时）
                 if current_rate_limited and prev_rate_limited:
                     if prev_minutes_remaining != current_minutes_remaining:
@@ -293,29 +299,65 @@ class FeishuNotifier:
 
             # 添加操作按钮（先添加分隔线）
             card_message["card"]["elements"].append({"tag": "hr"})
-            
+
+            # actions_element = {
+            #     "tag":
+            #     "action",
+            #     "actions": [{
+            #         "tag": "button",
+            #         "text": {
+            #             "tag": "plain_text",
+            #             "content": "监控账户状态"
+            #         },
+            #         "type": "default",
+            #         "value": {
+            #             "action":
+            #             "monitor_accounts",
+            #             "url":
+            #             f"http://{self.server_host}:{self.server_port}/trigger/monitor_accounts?k={self.simple_key}"
+            #         }
+            #     }, {
+            #         "tag": "button",
+            #         "text": {
+            #             "tag": "plain_text",
+            #             "content": "监控API使用情况"
+            #         },
+            #         "type": "default",
+            #         "value": {
+            #             "action":
+            #             "monitor_api_usage",
+            #             "url":
+            #             f"http://{self.server_host}:{self.server_port}/trigger/monitor_api_usage?k={self.simple_key}"
+            #         }
+            #     }]
+            # }
+
             actions_element = {
-                "tag": "action",
-                "actions": [
-                    {
-                        "tag": "button",
-                        "text": {
-                            "tag": "plain_text",
-                            "content": "监控账户状态"
-                        },
-                        "type": "default",
-                        "url": f"http://{self.server_host}:{self.server_port}/trigger/monitor_accounts?k={self.simple_key}"
+                "tag":
+                "action",
+                "actions": [{
+                    "tag":
+                    "button",
+                    "text": {
+                        "tag": "plain_text",
+                        "content": "监控账户状态"
                     },
-                    {
-                        "tag": "button",
-                        "text": {
-                            "tag": "plain_text",
-                            "content": "监控API使用情况"
-                        },
-                        "type": "primary",
-                        "url": f"http://{self.server_host}:{self.server_port}/trigger/monitor_api_usage?k={self.simple_key}"
-                    }
-                ]
+                    "type":
+                    "default",
+                    "url":
+                    f"http://{self.server_host}:{self.server_port}/trigger/monitor_accounts?k={self.simple_key}"
+                }, {
+                    "tag":
+                    "button",
+                    "text": {
+                        "tag": "plain_text",
+                        "content": "监控API使用情况"
+                    },
+                    "type":
+                    "default",
+                    "url":
+                    f"http://{self.server_host}:{self.server_port}/trigger/monitor_api_usage?k={self.simple_key}"
+                }]
             }
             card_message["card"]["elements"].append(actions_element)
 
@@ -338,8 +380,10 @@ class FeishuNotifier:
                 }, {
                     "tag": "div",
                     "text": {
-                        "tag": "lark_md",
-                        "content": f"**恢复时间**: {(datetime.now() +relativedelta(minutes=minutes_remaining)).strftime('%Y/%m/%d %H:%M')}"
+                        "tag":
+                        "lark_md",
+                        "content":
+                        f"**恢复时间**: {(datetime.now() +relativedelta(minutes=minutes_remaining)).strftime('%Y/%m/%d %H:%M')}"
                     }
                 }]
                 card_message["card"]["elements"].extend(rate_limit_elements)
@@ -449,23 +493,25 @@ def create_notifier_from_config(
     """
     try:
         config_manager = create_config_manager(config_file)
-        
+
         # 获取通知配置
         notification_config = config_manager.get_notification_config()
         feishu_config = notification_config.get('feishu', {})
-        
+
         # 获取服务器配置
         server_config = config_manager.get_server_config()
         auth_config = server_config.get('auth', {})
-        
+
         webhook_url = feishu_config.get('webhook_url', '')
-        enabled = notification_config.get('enabled', False) and feishu_config.get('enabled', True)
+        enabled = notification_config.get(
+            'enabled', False) and feishu_config.get('enabled', True)
         server_host = server_config.get('host', 'localhost')
         server_port = server_config.get('port', 8155)
         simple_key = auth_config.get('simple_key', 'key')
 
         if webhook_url and enabled:
-            return FeishuNotifier(webhook_url, enabled, server_host, server_port, simple_key)
+            return FeishuNotifier(webhook_url, enabled, server_host,
+                                  server_port, simple_key)
         else:
             print("飞书通知未启用或webhook未配置")
             return None

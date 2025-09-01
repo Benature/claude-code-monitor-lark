@@ -31,7 +31,52 @@ The system follows a **direct class interaction** pattern where components pass 
 
 ## 常用命令
 
-### Development and Testing
+### 使用Makefile（推荐）
+```bash
+# 查看所有可用命令
+make help
+
+# 安装依赖
+make install
+
+# 运行主要功能
+make run              # 运行Claude账户监控（推荐）
+make run-api          # 运行API使用情况监控
+make run-server       # 启动FastAPI服务器
+make run-dev          # 开发模式（热重载）
+
+# 使用自定义配置
+make run-config CONFIG=custom_config.yaml
+make run-api-config CONFIG=custom_config.yaml
+
+# 单独运行组件
+make scrape-accounts  # 仅爬取Claude账户数据
+make scrape-api       # 仅爬取API使用数据
+make check-limits     # 仅检查限流状态
+make notify           # 测试通知功能
+
+# 运行测试
+make test             # 运行所有测试
+make test-manual      # 手动运行测试
+make lint             # 代码检查
+make format           # 代码格式化
+
+# 服务器相关
+make server-dev       # 开发服务器
+make server-prod      # 生产服务器（多进程）
+make client-test      # 测试API客户端
+
+# 快速触发（需要服务器运行）
+make trigger-accounts # 触发账户监控
+make trigger-api      # 触发API监控
+make trigger-full     # 触发完整监控
+
+# 项目状态
+make status           # 显示项目状态
+make clean            # 清理临时文件
+```
+
+### Development and Testing（传统方式）
 ```bash
 # Install dependencies
 pip install -r requirements.txt
