@@ -4,8 +4,6 @@ API使用情况飞书通知模块
 发送API密钥使用统计的飞书通知
 """
 
-import json
-from datetime import datetime
 from typing import Optional, Dict, Any, List
 from .feishu_notifier import FeishuNotifier
 from ..utils.config_loader import create_config_manager
@@ -221,6 +219,18 @@ class ApiUsageNotifier(FeishuNotifier):
 
                 card_message["card"]["elements"].extend(usage_elements)
 
+            # 添加操作按钮（先添加分隔线）
+            card_message["card"]["elements"].append({"tag": "hr"})
+
+            # 使用配置化的按钮
+            button_actions = self._get_button_actions()
+            if button_actions:
+                actions_element = {
+                    "tag": "action",
+                    "actions": button_actions
+                }
+                card_message["card"]["elements"].append(actions_element)
+
             # 添加时间戳
             timestamp_element = [
                 {
@@ -278,9 +288,10 @@ def create_api_notifier_from_config(config_file: str = 'config.yaml') -> Optiona
         server_host = server_config.get('host', 'localhost')
         server_port = server_config.get('port', 8155)
         simple_key = auth_config.get('simple_key', 'key')
+        button_config = feishu_config.get('buttons', {})
 
         if webhook_url and enabled:
-            return ApiUsageNotifier(webhook_url, enabled, server_host, server_port, simple_key)
+            return ApiUsageNotifier(webhook_url, enabled, server_host, server_port, simple_key, button_config)
         else:
             print("飞书通知未启用或webhook未配置")
             return None

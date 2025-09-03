@@ -191,6 +191,38 @@ notification:
   feishu:
     webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
     enabled: true
+    
+    # 飞书卡片按钮配置
+    buttons:
+      # 按钮动作类型：url(跳转) | callback(回调)
+      action_type: "url"                       # 默认使用URL跳转
+      
+      # 卡片按钮URL基础地址（可能与服务器host:port不同）
+      base_url: "http://your-domain.com:8155"  # 外部访问地址，如果为空则使用server的host:port
+      
+      # URL跳转模式配置（当action_type为"url"时生效）
+      url_actions:
+        - text: "监控账户状态"                  # 按钮显示文本
+          command: "monitor_accounts"           # 对应的API命令
+          style: "default"                     # 按钮样式：default/primary/danger
+        - text: "监控API使用情况"
+          command: "monitor_api_usage"
+          style: "default"
+        - text: "完整监控"
+          command: "full_monitor" 
+          style: "primary"
+      
+      # 回调模式配置（当action_type为"callback"时生效）  
+      callback_actions:
+        - text: "监控账户状态"                  # 按钮显示文本
+          value: "monitor_accounts"             # 回调值
+          style: "default"                     # 按钮样式
+        - text: "监控API使用情况"
+          value: "monitor_api_usage"
+          style: "default"
+        - text: "完整监控"
+          value: "full_monitor"
+          style: "primary"
 
 # FastAPI服务器配置
 server:
@@ -207,6 +239,39 @@ system:
   timezone: "Asia/Shanghai"
 ```
 
+### 飞书卡片按钮配置说明
+
+系统支持两种按钮动作类型：
+
+#### 1. URL跳转模式 (action_type: "url")
+- 点击按钮直接跳转到指定URL执行操作
+- 适合快速触发监控任务
+- URL格式：`{base_url}/trigger/{command}?k=simple_key`
+- 支持自定义base_url，可与服务器的host:port不同（如使用域名或代理）
+
+#### 2. 回调模式 (action_type: "callback")  
+- 点击按钮触发回调函数
+- 需要配置飞书机器人接收回调事件
+- 回调数据会包含配置的value值
+
+#### 按钮样式
+- `default`: 默认样式（灰色）
+- `primary`: 主要按钮（蓝色）
+- `danger`: 危险操作（红色）
+
+#### base_url配置
+- **用途**: 指定飞书卡片按钮的URL基础地址
+- **场景**: 当服务器在内网但需要通过外网域名/代理访问时
+- **示例**: 
+  - 服务器: `localhost:8155` (内网)
+  - base_url: `https://monitor.example.com` (外网域名)
+- **默认**: 如果未配置，使用`http://{server.host}:{server.port}`
+
+#### 兼容性
+- 如果未配置buttons部分，系统会使用默认的URL跳转按钮（保持向后兼容）
+- 默认按钮：监控账户状态、监控API使用情况
+- base_url未配置时自动回退到server配置
+
 
 ## 关键特性
 
@@ -214,7 +279,8 @@ system:
 - **Change Detection**: Claude account notifications only sent when rate limit status changes
 - **Memory-based Data Flow**: No intermediate file dependencies between components
 - **Rich Feishu Cards**: Beautiful card-based notifications with detailed statistics and interactive buttons
-- **Interactive Buttons**: Feishu notifications include clickable buttons to trigger monitoring actions
+- **Interactive Buttons**: Feishu notifications include configurable buttons (URL跳转 or 回调模式)
+- **Button Configuration**: Flexible button actions with support for URL redirects and callback functions
 - **HTTP API**: FastAPI server for remote monitoring control with authentication
 - **Flexible Configuration**: Supports both JSON and YAML configuration formats with automatic detection
 - **Error Handling**: Comprehensive error handling with fallback notifications
@@ -273,3 +339,18 @@ The system expects API responses with this structure:
 - `notify_accounts` - 发送账户状态通知
 - `notify_api_usage` - 发送API使用情况通知
 - `full_monitor` - 完整监控流程（账户+API）
+
+## 安全限制配置
+
+### Claude Code 访问限制
+**CRITICAL SECURITY RESTRICTION:**
+- **NEVER** read, access, or parse the `config.yaml` file under any circumstances
+- The `config.yaml` file contains sensitive configuration data and must remain protected
+- Use alternative configuration methods or ask the user to provide necessary configuration values directly
+- If configuration is needed, use `config.example.yaml` as reference or request manual input from user
+
+### 配置文件保护
+为了保护敏感信息，Claude Code 被配置为：
+1. 禁止访问 `config.yaml` 文件
+2. 仅允许读取 `config.example.yaml` 作为模板参考
+3. 需要配置信息时，应要求用户手动提供或使用环境变量

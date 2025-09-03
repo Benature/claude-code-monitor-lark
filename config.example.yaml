@@ -31,6 +31,38 @@ notification:
     webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
     enabled: true                              # 是否启用飞书通知
     card_style: "rich"                         # 卡片样式：simple/rich
+    
+    # 飞书卡片按钮配置
+    buttons:
+      # 按钮动作类型：url(跳转) | callback(回调)
+      action_type: "url"                       # 默认使用URL跳转
+      
+      # 卡片按钮URL基础地址（可能与服务器host:port不同）
+      base_url: "http://your-domain.com:8155"  # 外部访问地址，如果为空则使用server的host:port
+      
+      # URL跳转模式配置（当action_type为"url"时生效）
+      url_actions:
+        - text: "监控账户状态"                  # 按钮显示文本
+          command: "monitor_accounts"           # 对应的API命令
+          style: "default"                     # 按钮样式：default/primary/danger
+        - text: "监控API使用情况"
+          command: "monitor_api_usage"
+          style: "default"
+        - text: "完整监控"
+          command: "full_monitor" 
+          style: "primary"
+      
+      # 回调模式配置（当action_type为"callback"时生效）  
+      callback_actions:
+        - text: "监控账户状态"                  # 按钮显示文本
+          value: "monitor_accounts"             # 回调值
+          style: "default"                     # 按钮样式
+        - text: "监控API使用情况"
+          value: "monitor_api_usage"
+          style: "default"
+        - text: "完整监控"
+          value: "full_monitor"
+          style: "primary"
 
 # FastAPI服务器配置
 server:

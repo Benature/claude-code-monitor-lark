@@ -20,7 +20,8 @@ class FeishuNotifier:
                  enabled: bool = True,
                  server_host: str = "localhost",
                  server_port: int = 8155,
-                 simple_key: str = "key"):
+                 simple_key: str = "key",
+                 button_config: Optional[Dict[str, Any]] = None):
         """
         初始化飞书通知器
 
@@ -30,12 +31,14 @@ class FeishuNotifier:
             server_host: 服务器主机地址
             server_port: 服务器端口
             simple_key: API访问密钥
+            button_config: 按钮配置字典
         """
         self.webhook_url = webhook_url
         self.enabled = enabled
         self.server_host = server_host
         self.server_port = server_port
         self.simple_key = simple_key
+        self.button_config = button_config or {}
         self.bot = None
 
         if self.enabled and self.webhook_url:
@@ -51,6 +54,85 @@ class FeishuNotifier:
             except Exception as e:
                 print(f"警告：初始化飞书机器人失败: {e}")
                 self.bot = None
+
+    def _get_button_base_url(self) -> str:
+        """
+        获取按钮URL的基础地址
+        
+        Returns:
+            基础URL字符串
+        """
+        if self.button_config and self.button_config.get('base_url'):
+            return self.button_config['base_url']
+        else:
+            # 回退到server配置
+            return f"http://{self.server_host}:{self.server_port}"
+
+    def _get_button_actions(self) -> list:
+        """
+        根据配置生成按钮动作列表
+        
+        Returns:
+            按钮动作元素列表
+        """
+        base_url = self._get_button_base_url()
+        
+        if not self.button_config:
+            # 默认按钮配置（保持向后兼容）
+            return [{
+                "tag": "button",
+                "text": {
+                    "tag": "plain_text",
+                    "content": "监控账户状态"
+                },
+                "type": "default",
+                "url": f"{base_url}/trigger/monitor_accounts?k={self.simple_key}"
+            }, {
+                "tag": "button",
+                "text": {
+                    "tag": "plain_text",
+                    "content": "监控API使用情况"
+                },
+                "type": "default",
+                "url": f"{base_url}/trigger/monitor_api_usage?k={self.simple_key}"
+            }]
+        
+        action_type = self.button_config.get('action_type', 'url')
+        actions = []
+        
+        if action_type == 'url':
+            # URL跳转模式
+            url_actions = self.button_config.get('url_actions', [])
+            for action in url_actions:
+                button = {
+                    "tag": "button",
+                    "text": {
+                        "tag": "plain_text",
+                        "content": action.get('text', '未知按钮')
+                    },
+                    "type": action.get('style', 'default'),
+                    "url": f"{base_url}/trigger/{action.get('command', 'monitor_accounts')}?k={self.simple_key}"
+                }
+                actions.append(button)
+        
+        elif action_type == 'callback':
+            # 回调模式
+            callback_actions = self.button_config.get('callback_actions', [])
+            for action in callback_actions:
+                button = {
+                    "tag": "button",
+                    "text": {
+                        "tag": "plain_text",
+                        "content": action.get('text', '未知按钮')
+                    },
+                    "type": action.get('style', 'default'),
+                    "value": {
+                        "action": action.get('value', 'monitor_accounts')
+                    }
+                }
+                actions.append(button)
+        
+        return actions
 
     def _get_current_time(self) -> str:
         """
@@ -300,66 +382,14 @@ class FeishuNotifier:
             # 添加操作按钮（先添加分隔线）
             card_message["card"]["elements"].append({"tag": "hr"})
 
-            # actions_element = {
-            #     "tag":
-            #     "action",
-            #     "actions": [{
-            #         "tag": "button",
-            #         "text": {
-            #             "tag": "plain_text",
-            #             "content": "监控账户状态"
-            #         },
-            #         "type": "default",
-            #         "value": {
-            #             "action":
-            #             "monitor_accounts",
-            #             "url":
-            #             f"http://{self.server_host}:{self.server_port}/trigger/monitor_accounts?k={self.simple_key}"
-            #         }
-            #     }, {
-            #         "tag": "button",
-            #         "text": {
-            #             "tag": "plain_text",
-            #             "content": "监控API使用情况"
-            #         },
-            #         "type": "default",
-            #         "value": {
-            #             "action":
-            #             "monitor_api_usage",
-            #             "url":
-            #             f"http://{self.server_host}:{self.server_port}/trigger/monitor_api_usage?k={self.simple_key}"
-            #         }
-            #     }]
-            # }
-
-            actions_element = {
-                "tag":
-                "action",
-                "actions": [{
-                    "tag":
-                    "button",
-                    "text": {
-                        "tag": "plain_text",
-                        "content": "监控账户状态"
-                    },
-                    "type":
-                    "default",
-                    "url":
-                    f"http://{self.server_host}:{self.server_port}/trigger/monitor_accounts?k={self.simple_key}"
-                }, {
-                    "tag":
-                    "button",
-                    "text": {
-                        "tag": "plain_text",
-                        "content": "监控API使用情况"
-                    },
-                    "type":
-                    "default",
-                    "url":
-                    f"http://{self.server_host}:{self.server_port}/trigger/monitor_api_usage?k={self.simple_key}"
-                }]
-            }
-            card_message["card"]["elements"].append(actions_element)
+            # 使用配置化的按钮
+            button_actions = self._get_button_actions()
+            if button_actions:
+                actions_element = {
+                    "tag": "action",
+                    "actions": button_actions
+                }
+                card_message["card"]["elements"].append(actions_element)
 
             # 如果正在限流，添加限流信息
             if is_rate_limited:
@@ -508,10 +538,11 @@ def create_notifier_from_config(
         server_host = server_config.get('host', 'localhost')
         server_port = server_config.get('port', 8155)
         simple_key = auth_config.get('simple_key', 'key')
+        button_config = feishu_config.get('buttons', {})
 
         if webhook_url and enabled:
             return FeishuNotifier(webhook_url, enabled, server_host,
-                                  server_port, simple_key)
+                                  server_port, simple_key, button_config)
         else:
             print("飞书通知未启用或webhook未配置")
             return None
