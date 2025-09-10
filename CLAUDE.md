@@ -189,12 +189,21 @@ storage:
 notification:
   enabled: true
   feishu:
-    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
     enabled: true
+    
+    # 飞书机器人模式配置（二选一）：
+    
+    # 模式1：Webhook模式（简单）- 只支持URL跳转按钮
+    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
+    
+    # 模式2：应用模式（高级）- 支持回调按钮，需要飞书开放平台应用
+    # app_id: "cli_your_app_id"                # 飞书应用ID
+    # app_secret: "your_app_secret"            # 飞书应用Secret
     
     # 飞书卡片按钮配置
     buttons:
       # 按钮动作类型：url(跳转) | callback(回调)
+      # 注意：callback模式仅在使用app_id/app_secret时可用
       action_type: "url"                       # 默认使用URL跳转
       
       # 卡片按钮URL基础地址（可能与服务器host:port不同）
@@ -212,7 +221,7 @@ notification:
           command: "full_monitor" 
           style: "primary"
       
-      # 回调模式配置（当action_type为"callback"时生效）  
+      # 回调模式配置（当action_type为"callback"时生效，仅限应用模式）  
       callback_actions:
         - text: "监控账户状态"                  # 按钮显示文本
           value: "monitor_accounts"             # 回调值
@@ -239,6 +248,24 @@ system:
   timezone: "Asia/Shanghai"
 ```
 
+### 飞书机器人模式配置说明
+
+系统支持两种飞书机器人配置模式：
+
+#### 模式1：Webhook模式（简单）
+- **配置方式**：只需配置 `webhook_url`
+- **适用场景**：快速部署、简单使用场景
+- **按钮限制**：只支持URL跳转按钮（`action_type: "url"`）
+- **优点**：配置简单，无需复杂的飞书应用设置
+- **缺点**：按钮点击会跳转浏览器，用户体验较差
+
+#### 模式2：应用模式（高级）
+- **配置方式**：配置 `app_id` 和 `app_secret`
+- **适用场景**：生产环境、用户体验要求高的场景
+- **按钮支持**：支持URL跳转和回调按钮（`action_type: "callback"`）
+- **优点**：支持卡片内交互，用户体验更好
+- **缺点**：需要在飞书开放平台创建应用和配置回调
+
 ### 飞书卡片按钮配置说明
 
 系统支持两种按钮动作类型：
@@ -248,11 +275,13 @@ system:
 - 适合快速触发监控任务
 - URL格式：`{base_url}/trigger/{command}?k=simple_key`
 - 支持自定义base_url，可与服务器的host:port不同（如使用域名或代理）
+- **兼容性**：Webhook模式和应用模式都支持
 
 #### 2. 回调模式 (action_type: "callback")  
 - 点击按钮触发回调函数
 - 需要配置飞书机器人接收回调事件
 - 回调数据会包含配置的value值
+- **兼容性**：仅应用模式支持，Webhook模式会自动切换为URL模式
 
 #### 按钮样式
 - `default`: 默认样式（灰色）
@@ -267,10 +296,10 @@ system:
   - base_url: `https://monitor.example.com` (外网域名)
 - **默认**: 如果未配置，使用`http://{server.host}:{server.port}`
 
-#### 兼容性
+#### 模式兼容性
 - 如果未配置buttons部分，系统会使用默认的URL跳转按钮（保持向后兼容）
-- 默认按钮：监控账户状态、监控API使用情况
-- base_url未配置时自动回退到server配置
+- Webhook模式配置callback按钮时会自动切换为url模式并发出警告
+- 应用模式支持所有按钮类型
 
 
 ## 关键特性
@@ -281,6 +310,7 @@ system:
 - **Rich Feishu Cards**: Beautiful card-based notifications with detailed statistics and interactive buttons
 - **Interactive Buttons**: Feishu notifications include configurable buttons (URL跳转 or 回调模式)
 - **Button Configuration**: Flexible button actions with support for URL redirects and callback functions
+- **Feishu Callback Support**: Built-in callback endpoint for handling Feishu bot URL verification and interactive events
 - **HTTP API**: FastAPI server for remote monitoring control with authentication
 - **Flexible Configuration**: Supports both JSON and YAML configuration formats with automatic detection
 - **Error Handling**: Comprehensive error handling with fallback notifications
@@ -332,6 +362,9 @@ The system expects API responses with this structure:
 **简单触发端点（参数验证）:**
 - **简单触发**: `GET /trigger/{command}?k=your_key` - 通过URL参数验证后触发监控
 - **指定配置**: `GET /trigger/{command}/{config_file}?k=your_key` - 使用指定配置文件触发
+
+**飞书回调端点:**
+- **飞书回调**: `POST /callback/feishu` - 接收飞书服务器回调（支持URL验证和交互事件）
 
 ### FastAPI支持的命令:
 - `check_accounts` - 检查账户限流状态

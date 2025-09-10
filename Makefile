@@ -144,6 +144,18 @@ test-system:
 	@echo "运行系统测试..."
 	python3 tests/test_system.py
 
+test-callback:
+	@echo "测试飞书回调功能..."
+	python3 tests/test_feishu_callback.py
+
+test-modes:
+	@echo "测试飞书机器人模式..."
+	python3 tests/test_feishu_modes.py
+
+test-chat-id:
+	@echo "测试飞书应用模式chat_id..."
+	python3 tests/test_app_chat_id.py
+
 # 代码检查（如果有工具的话）
 lint:
 	@echo "检查代码格式..."

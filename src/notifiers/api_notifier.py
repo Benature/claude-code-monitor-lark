@@ -90,7 +90,14 @@ class ApiUsageNotifier(FeishuNotifier):
         Returns:
             发送是否成功
         """
-        if not self.enabled or not self.bot:
+        # 状态检查（静默）
+        if not self.enabled:
+            print("⚠️ API通知器未启用，跳过发送")
+            return True
+        
+        # 应用模式不需要bot对象，webhook模式才需要
+        if self.mode == "webhook" and not self.bot:
+            print("⚠️ Webhook模式下bot未初始化，跳过发送")
             return True
 
         try:
@@ -246,17 +253,8 @@ class ApiUsageNotifier(FeishuNotifier):
             ]
             card_message["card"]["elements"].extend(timestamp_element)
 
-            # 发送消息
-            response = self.bot.send_with_payload(card_message)
-            response_data = response.json()
-            print(f"飞书API响应: {response_data}")
-
-            if response_data.get('code') == 0:
-                print("✅ API使用情况通知发送成功")
-                return True
-            else:
-                print(f"❌ API使用情况通知发送失败: {response_data}")
-                return False
+            # 发送消息 - 使用父类的发送方法支持多种模式
+            return self._send_message(card_message)
 
         except Exception as e:
             print(f"❌ 发送API使用情况通知时发生异常: {e}")
@@ -284,16 +282,32 @@ def create_api_notifier_from_config(config_file: str = 'config.yaml') -> Optiona
         auth_config = server_config.get('auth', {})
         
         webhook_url = feishu_config.get('webhook_url', '')
+        app_id = feishu_config.get('app_id', '')
+        app_secret = feishu_config.get('app_secret', '')
         enabled = notification_config.get('enabled', False) and feishu_config.get('enabled', True)
         server_host = server_config.get('host', 'localhost')
         server_port = server_config.get('port', 8155)
         simple_key = auth_config.get('simple_key', 'key')
         button_config = feishu_config.get('buttons', {})
 
-        if webhook_url and enabled:
-            return ApiUsageNotifier(webhook_url, enabled, server_host, server_port, simple_key, button_config)
+        # 支持两种模式：Webhook模式或应用模式
+        if enabled and (webhook_url or (app_id and app_secret)):
+            # 获取chat_id配置
+            chat_id = feishu_config.get('chat_id')
+            
+            return ApiUsageNotifier(
+                webhook_url=webhook_url,
+                app_id=app_id,
+                app_secret=app_secret,
+                chat_id=chat_id,
+                enabled=enabled,
+                server_host=server_host,
+                server_port=server_port,
+                simple_key=simple_key,
+                button_config=button_config
+            )
         else:
-            print("飞书通知未启用或webhook未配置")
+            print("飞书通知未启用或缺少配置（需要webhook_url或app_id+app_secret）")
             return None
 
     except FileNotFoundError:

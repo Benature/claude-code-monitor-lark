@@ -28,13 +28,25 @@ storage:
 notification:
   enabled: true                                # 是否启用通知
   feishu:
-    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
     enabled: true                              # 是否启用飞书通知
+    
+    # 飞书机器人模式配置（二选一）：
+    # 
+    # 【模式1：Webhook模式】- 简单配置，只支持URL跳转按钮
+    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
+    # 
+    # 【模式2：应用模式】- 高级功能，支持回调按钮（取消下面注释使用）
+    # app_id: "cli_your_app_id"                # 飞书应用ID
+    # app_secret: "your_app_secret"            # 飞书应用Secret
+    # chat_id: "oc_your_chat_id"               # 目标群聊ID（可选，不填则自动获取第一个群聊）
+    # 注意：如果配置了app_id和app_secret，将优先使用应用模式
+    
     card_style: "rich"                         # 卡片样式：simple/rich
     
     # 飞书卡片按钮配置
     buttons:
       # 按钮动作类型：url(跳转) | callback(回调)
+      # 注意：callback模式仅在使用app_id/app_secret时可用
       action_type: "url"                       # 默认使用URL跳转
       
       # 卡片按钮URL基础地址（可能与服务器host:port不同）
@@ -52,7 +64,7 @@ notification:
           command: "full_monitor" 
           style: "primary"
       
-      # 回调模式配置（当action_type为"callback"时生效）  
+      # 回调模式配置（当action_type为"callback"时生效，仅限应用模式）  
       callback_actions:
         - text: "监控账户状态"                  # 按钮显示文本
           value: "monitor_accounts"             # 回调值
@@ -92,3 +104,45 @@ monitoring:
   check_interval: 300                         # 检查间隔（秒）
   rate_limit_threshold: 10                    # 限流阈值（分钟）
   notification_cooldown: 300                  # 通知冷却时间（秒）
+
+# =====================================
+# 飞书机器人配置示例
+# =====================================
+# 
+# 【示例1：Webhook模式配置】
+# notification:
+#   feishu:
+#     enabled: true
+#     webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_id"
+#     buttons:
+#       action_type: "url"
+#       url_actions:
+#         - text: "🔍 监控账户状态"
+#           command: "monitor_accounts"
+#           style: "default"
+#         - text: "📊 监控API使用情况"
+#           command: "monitor_api_usage"
+#           style: "default"
+#         - text: "🚀 完整监控"
+#           command: "full_monitor"
+#           style: "primary"
+# 
+# 【示例2：应用模式配置（支持回调）】
+# notification:
+#   feishu:
+#     enabled: true
+#     app_id: "cli_your_app_id"
+#     app_secret: "your_app_secret"
+#     chat_id: "oc_your_chat_id"               # 可选：指定群聊ID，不填则自动获取第一个群聊
+#     buttons:
+#       action_type: "callback"
+#       callback_actions:
+#         - text: "🔍 监控账户状态"
+#           value: "monitor_accounts"
+#           style: "default"
+#         - text: "📊 监控API使用情况"
+#           value: "monitor_api_usage"
+#           style: "default"
+#         - text: "🚀 完整监控"
+#           value: "full_monitor"
+#           style: "primary"

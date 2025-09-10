@@ -30,6 +30,10 @@ def main():
                         '-q',
                         action='store_true',
                         help='静默模式，不显示详细信息')
+    parser.add_argument('--no-notify',
+                        '-n',
+                        action='store_true',
+                        help='禁用飞书通知，仅爬取数据')
 
     args = parser.parse_args()
 
@@ -52,27 +56,32 @@ def main():
         if not args.quiet:
             print("✅ API使用数据爬取完成")
 
-        # 2. 初始化飞书通知器
-        if not args.quiet:
-            print("初始化飞书通知器...")
-            
-        notifier = create_api_notifier_from_config(args.config)
-        if not notifier:
-            error_msg = "飞书通知器初始化失败"
-            print(f"❌ {error_msg}")
-            sys.exit(1)
-
-        # 3. 直接发送通知（内存传递数据）
-        if not args.quiet:
-            print("发送API使用情况通知...")
-
-        notification_success = notifier.send_api_usage_notification(api_data)
-
-        if notification_success:
+        # 2. 初始化飞书通知器并发送通知（如果未禁用）
+        notifier = None
+        if not args.no_notify:
             if not args.quiet:
-                print("✅ 飞书通知发送成功")
+                print("初始化飞书通知器...")
+                
+            notifier = create_api_notifier_from_config(args.config)
+            if not notifier:
+                error_msg = "飞书通知器初始化失败"
+                print(f"❌ {error_msg}")
+                sys.exit(1)
+
+            # 3. 直接发送通知（内存传递数据）
+            if not args.quiet:
+                print("发送API使用情况通知...")
+
+            notification_success = notifier.send_api_usage_notification(api_data)
+
+            if notification_success:
+                if not args.quiet:
+                    print("✅ 飞书通知发送成功")
+            else:
+                print("❌ 飞书通知发送失败")
         else:
-            print("❌ 飞书通知发送失败")
+            if not args.quiet:
+                print("⚠️  飞书通知已禁用，跳过通知发送")
 
         # 4. 可选：保存数据到文件
         if args.save_file:
@@ -123,9 +132,9 @@ def main():
         error_msg = f"发生错误: {e}"
         print(f"❌ {error_msg}")
         
-        # 尝试发送错误通知
+        # 尝试发送错误通知（如果通知器已初始化且未禁用通知）
         try:
-            if 'notifier' in locals() and notifier:
+            if 'notifier' in locals() and notifier and not args.no_notify:
                 notifier.send_error_notification(error_msg)
         except:
             pass

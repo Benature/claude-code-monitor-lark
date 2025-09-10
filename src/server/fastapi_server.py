@@ -13,6 +13,7 @@ import json
 import hashlib
 import hmac
 from datetime import datetime
+from fastapi import Request
 
 from ..scrapers.claude_scraper import ClaudeScraper
 from ..monitors.rate_limit_checker import RateLimitChecker
@@ -113,6 +114,18 @@ class CommandResponse(BaseModel):
     timestamp: str
 
 
+class FeishuChallenge(BaseModel):
+    challenge: str
+    timestamp: str
+    nonce: str
+
+
+class FeishuCallbackEvent(BaseModel):
+    schema: str
+    header: Dict[str, Any]
+    event: Dict[str, Any]
+
+
 @app.get("/")
 async def root():
     """根路径，返回API信息"""
@@ -124,6 +137,7 @@ async def root():
         "endpoints": [
             "/command - 执行监控命令 (需要认证)", "/trigger/{command} - 简单触发命令 (无需认证)",
             "/trigger/{command}/{config_file} - 指定配置文件触发 (无需认证)",
+            "/callback/feishu - 飞书回调端点",
             "/health - 健康检查", "/docs - API文档"
         ],
         "simple_triggers": [
@@ -434,6 +448,125 @@ async def trigger_command_with_config(command: str,
         return CommandResponse(success=False,
                                message=f"执行命令失败: {str(e)}",
                                timestamp=datetime.now().isoformat())
+
+
+def _check_feishu_app_mode() -> bool:
+    """
+    检查是否配置了飞书应用模式（app_id + app_secret）
+    
+    Returns:
+        布尔值表示是否为应用模式
+    """
+    try:
+        config_manager = create_config_manager('config.yaml')
+        notification_config = config_manager.get_notification_config()
+        feishu_config = notification_config.get('feishu', {})
+        
+        app_id = feishu_config.get('app_id')
+        app_secret = feishu_config.get('app_secret')
+        
+        return bool(app_id and app_secret)
+    except Exception:
+        return False
+
+
+@app.post("/callback/feishu")
+async def feishu_callback(request: Request):
+    """
+    飞书回调端点
+    
+    处理飞书服务器发送的回调事件，包括：
+    1. URL验证（challenge）
+    2. 交互事件处理（按钮点击）
+    
+    注意：回调功能仅在配置app_id和app_secret时可用
+    """
+    try:
+        # 检查是否为应用模式
+        if not _check_feishu_app_mode():
+            print("警告：收到飞书回调请求，但当前配置为Webhook模式，回调功能不可用")
+            raise HTTPException(
+                status_code=400, 
+                detail="回调功能仅在飞书应用模式（app_id + app_secret）下可用"
+            )
+        
+        request_body = await request.body()
+        data = json.loads(request_body)
+        
+        print(f"收到飞书回调: {data}")
+        
+        # 处理URL验证（challenge）
+        if "challenge" in data:
+            challenge = data["challenge"]
+            print(f"飞书URL验证，返回challenge: {challenge}")
+            return {"challenge": challenge}
+        
+        # 处理交互事件（按钮点击）
+        if "header" in data and "event" in data:
+            event_type = data["header"].get("event_type", "")
+            
+            if event_type == "im.message.receive_v1":
+                print("收到消息事件")
+                return {"code": 0}
+            
+            elif event_type == "card.action.trigger":
+                print("收到卡片交互事件")
+                
+                # 获取交互数据
+                action = data["event"].get("action", {})
+                value = action.get("value", {})
+                
+                # 处理按钮点击
+                if isinstance(value, dict) and "command" in value:
+                    command = value["command"]
+                    print(f"处理按钮命令: {command}")
+                    
+                    # 异步执行监控命令
+                    asyncio.create_task(handle_callback_command(command))
+                    
+                    return {
+                        "code": 0,
+                        "msg": "ok",
+                        "data": {}
+                    }
+        
+        # 默认返回成功
+        return {"code": 0, "msg": "ok"}
+        
+    except json.JSONDecodeError:
+        print("飞书回调数据JSON解析失败")
+        raise HTTPException(status_code=400, detail="无效的JSON数据")
+    except Exception as e:
+        print(f"处理飞书回调时发生错误: {e}")
+        raise HTTPException(status_code=500, detail=f"处理回调失败: {str(e)}")
+
+
+async def handle_callback_command(command: str):
+    """
+    处理飞书回调命令
+    
+    在后台异步执行监控命令，避免阻塞回调响应
+    """
+    try:
+        print(f"开始执行回调命令: {command}")
+        
+        if command == "monitor_accounts":
+            result = await _monitor_accounts('config.yaml')
+            print(f"账户监控结果: {result.message}")
+            
+        elif command == "monitor_api_usage":
+            result = await _monitor_api_usage('config.yaml', 'today')
+            print(f"API监控结果: {result.message}")
+            
+        elif command == "full_monitor":
+            result = await _full_monitor('config.yaml', 'today')
+            print(f"完整监控结果: {result.message}")
+            
+        else:
+            print(f"不支持的回调命令: {command}")
+            
+    except Exception as e:
+        print(f"执行回调命令时发生错误: {e}")
 
 
 if __name__ == "__main__":
