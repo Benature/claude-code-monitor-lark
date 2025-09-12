@@ -549,8 +549,8 @@ async def feishu_callback(request: Request):
                 value = action.get("value", {})
 
                 # 处理按钮点击
-                if isinstance(value, dict) and "command" in value:
-                    command = value["command"]
+                if isinstance(value, dict) and "action" in value:
+                    command = value["action"]
                     print(f"处理按钮命令: {command}")
 
                     # 异步执行监控命令

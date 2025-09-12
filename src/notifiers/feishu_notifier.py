@@ -463,15 +463,36 @@ class FeishuNotifier:
             callback_actions = self.button_config.get('callback_actions', [])
             for action in callback_actions:
                 button = {
-                    "tag": "button",
+                    "tag":
+                    "button",
                     "text": {
                         "tag": "plain_text",
                         "content": action.get('text', '未知按钮')
                     },
-                    "type": action.get('style', 'default'),
-                    "value": {
-                        "command": action.get('value', 'monitor_accounts')
-                    }
+                    "type":
+                    action.get('style', 'default'),
+                    "value":
+                    action.get('value', 'monitor_accounts'),
+                    # "confirm": {
+                    #     "title": {
+                    #         "tag": "plain_text",
+                    #         "content": "确认操作"
+                    #     },
+                    #     "text": {
+                    #         "tag": "plain_text",
+                    #         "content": f"确定要执行 {action.get('text', '未知操作')} 吗？"
+                    #     }
+                    # },
+                    "behaviors": [  #交互行为配置
+                        {
+                            "type": "callback",  #  // 触发服务器回调（不打开页面）
+                            "value": {  #  // 自定义回传数据（业务标识）
+                                "action": action.get('value',
+                                                     'monitor_accounts'),
+                                # "param1": "value1"
+                            }
+                        }
+                    ]
                 }
                 actions.append(button)
 
