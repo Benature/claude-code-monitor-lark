@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, Dict, Any
-from larkpy import LarkWebhook
+from larkpy import LarkWebhook, LarkMessage
 from ..utils.config_loader import create_config_manager
 
 
@@ -49,8 +49,8 @@ class FeishuNotifier:
         self.simple_key = simple_key
         self.button_config = button_config or {}
         self.bot = None
+        self.lark_message = None
         self.mode = self._determine_mode()
-        self.access_token = None  # 应用模式的访问令牌
         self.resolved_chat_id = None  # 最终使用的群聊ID
 
         # 打印当前使用的飞书模式
@@ -67,11 +67,17 @@ class FeishuNotifier:
                 if self.mode == "webhook" and self.webhook_url:
                     self.bot = LarkWebhook(self.webhook_url)
                 elif self.mode == "app" and self.app_id and self.app_secret:
-                    self.bot = None
-                    self.requests_fallback = True
+                    # 使用 LarkMessage 替代原生 requests
+                    self.lark_message = LarkMessage(
+                        app_id=self.app_id,
+                        app_secret=self.app_secret,
+                        log_level='ERROR'
+                    )
+                    print("✅ LarkMessage 初始化成功")
             except Exception as e:
                 print(f"警告：初始化飞书机器人失败: {e}")
                 self.bot = None
+                self.lark_message = None
 
     def _determine_mode(self) -> str:
         """
@@ -110,79 +116,6 @@ class FeishuNotifier:
         """
         return self.mode == "app"
 
-    def _get_app_access_token(self) -> Optional[str]:
-        """
-        获取应用访问令牌
-        
-        Returns:
-            访问令牌字符串，失败返回None
-        """
-        if self.mode != "app" or not self.app_id or not self.app_secret:
-            return None
-
-        if self.access_token:
-            return self.access_token
-
-        try:
-            import requests
-
-            url = "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
-            headers = {"Content-Type": "application/json"}
-            data = {"app_id": self.app_id, "app_secret": self.app_secret}
-
-            response = requests.post(url,
-                                     headers=headers,
-                                     json=data,
-                                     timeout=10)
-            response.raise_for_status()
-
-            result = response.json()
-            if result.get("code") == 0:
-                self.access_token = result.get("app_access_token")
-                return self.access_token
-            else:
-                print(f"获取访问令牌失败: {result}")
-                return None
-
-        except Exception as e:
-            print(f"获取访问令牌时发生异常: {e}")
-            return None
-
-    def _get_tenant_access_token(self) -> Optional[str]:
-        """
-        获取租户访问令牌（用于发送消息）
-        
-        Returns:
-            租户访问令牌字符串，失败返回None
-        """
-        if self.mode != "app" or not self.app_id or not self.app_secret:
-            return None
-
-        try:
-            import requests
-
-            url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
-            headers = {"Content-Type": "application/json"}
-            data = {"app_id": self.app_id, "app_secret": self.app_secret}
-
-            response = requests.post(url,
-                                     headers=headers,
-                                     json=data,
-                                     timeout=10)
-            response.raise_for_status()
-
-            result = response.json()
-            if result.get("code") == 0:
-                tenant_token = result.get("tenant_access_token")
-                print(f"✅ 获取tenant_access_token成功")
-                return tenant_token
-            else:
-                print(f"获取租户访问令牌失败: {result}")
-                return None
-
-        except Exception as e:
-            print(f"获取租户访问令牌时发生异常: {e}")
-            return None
 
     def _get_chat_list(self) -> list:
         """
@@ -191,42 +124,23 @@ class FeishuNotifier:
         Returns:
             群聊列表，格式：[{"chat_id": "xxx", "name": "群名称", "chat_type": "group"}]
         """
-        access_token = self._get_app_access_token()
-        if not access_token:
+        if self.mode != "app" or not self.lark_message:
             return []
 
         try:
-            import requests
-
-            url = "https://open.feishu.cn/open-apis/im/v1/chats"
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
-            }
-
-            # 打印headers（静默）
-
-            response = requests.get(url, headers=headers, timeout=10)
-            result = response.json()
-
-            # 如果响应不是200，先打印详细错误信息
-            if response.status_code != 200:
-                print(f"❌ 获取群聊列表失败 (状态码: {response.status_code})")
-                print(f"📋 详细错误信息: {result}")
-                response.raise_for_status()
-
-            # 打印结果（静默）
-
-            if result.get("code") == 0:
-                chats = result.get("data", {}).get("items", [])
-                print(f"获取到 {len(chats)} 个群聊")
-                for chat in chats:
+            # 使用 LarkMessage 的内置方法获取群聊列表
+            chats = self.lark_message.get_group_chat_list()
+            
+            if isinstance(chats, dict) and chats.get("code") == 0:
+                chat_items = chats.get("data", {}).get("items", [])
+                print(f"获取到 {len(chat_items)} 个群聊")
+                for chat in chat_items:
                     print(
                         f"  群聊: {chat.get('name', 'N/A')} (ID: {chat.get('chat_id', 'N/A')})"
                     )
-                return chats
+                return chat_items
             else:
-                print(f"获取群聊列表失败: {result}")
+                print(f"获取群聊列表失败: {chats}")
                 return []
 
         except Exception as e:
@@ -267,73 +181,6 @@ class FeishuNotifier:
             print("警告：无法获取到任何群聊")
             return None
 
-    def _send_message_via_app(self, message_payload: dict) -> bool:
-        """
-        通过应用模式发送消息
-        
-        Args:
-            message_payload: 消息载荷
-            
-        Returns:
-            发送是否成功
-        """
-        # 发送消息需要使用tenant_access_token
-        tenant_token = self._get_tenant_access_token()
-        if not tenant_token:
-            print("❌ 无法获取租户访问令牌，消息发送失败")
-            return False
-
-        chat_id = self._resolve_chat_id()
-        if not chat_id:
-            print("❌ 无法获取群聊ID，消息发送失败")
-            return False
-
-        print(f"🎯 发送飞书消息到群聊: {chat_id}")
-
-        try:
-            import requests
-
-            url = "https://open.feishu.cn/open-apis/im/v1/messages"
-            headers = {
-                "Authorization": f"Bearer {tenant_token}",
-                "Content-Type": "application/json"
-            }
-
-            # 根据飞书文档格式构建最简单的消息
-            message_data = {
-                "receive_id": chat_id,
-                "receive_id_type": "chat_id",
-                "msg_type": "text",
-                "content": json.dumps({"text": "📊 Claude API 使用统计测试"})
-            }
-
-            print(f"🔍 发送URL: {url}")
-            print(f"🔍 发送Headers: {headers}")
-            print(f"🔍 发送Data: {message_data}")
-
-            response = requests.post(url=url,
-                                     headers=headers,
-                                     json=message_data,
-                                     timeout=30)
-
-            result = response.json()
-
-            # 如果响应不是200，先打印详细错误信息
-            if response.status_code != 200:
-                print(f"❌ 发送消息失败 (状态码: {response.status_code})")
-                print(f"📋 详细错误信息: {result}")
-                response.raise_for_status()
-
-            if result.get("code") == 0:
-                print("✅ 应用模式消息发送成功")
-                return True
-            else:
-                print(f"❌ 应用模式消息发送失败: {result}")
-                return False
-
-        except Exception as e:
-            print(f"❌ 发送应用模式消息时发生异常: {e}")
-            return False
 
     def _send_message(self, message_payload: dict) -> bool:
         """
@@ -345,10 +192,45 @@ class FeishuNotifier:
         Returns:
             发送是否成功
         """
-        # 准备发送消息（静默）
-        if self.mode == "app":
-            return self._send_message_via_app(message_payload)
+        if self.mode == "app" and self.lark_message:
+            # 应用模式：使用 LarkMessage 发送
+            chat_id = self._resolve_chat_id()
+            if not chat_id:
+                print("❌ 无法获取群聊ID，消息发送失败")
+                return False
+
+            print(f"🎯 发送飞书消息到群聊: {chat_id}")
+            
+            try:
+                # 检查消息类型并使用相应的方法发送
+                if message_payload.get("msg_type") == "interactive":
+                    # 对于卡片消息，使用 messages 方法，并指定 msg_type 和 receive_id_type
+                    result = self.lark_message.messages(
+                        content=message_payload.get("card"),  # 卡片内容
+                        receive_id=chat_id,
+                        msg_type="interactive",
+                        receive_id_type="chat_id"
+                    )
+                else:
+                    # 对于其他类型消息，使用通用的 send 方法
+                    result = self.lark_message.send(
+                        content=message_payload,
+                        receive_id=chat_id
+                    )
+                
+                if isinstance(result, dict) and result.get("code") == 0:
+                    print("✅ 应用模式消息发送成功")
+                    return True
+                else:
+                    print(f"❌ 应用模式消息发送失败: {result}")
+                    return False
+                    
+            except Exception as e:
+                print(f"❌ 发送应用模式消息时发生异常: {e}")
+                return False
+                
         elif self.mode == "webhook" and self.bot:
+            # Webhook模式：使用 LarkWebhook 发送
             try:
                 response = self.bot.send_with_payload(message_payload)
                 response_data = response.json()
@@ -558,7 +440,13 @@ class FeishuNotifier:
         Returns:
             是否有通知发送成功
         """
-        if not self.enabled or not self.bot:
+        if not self.enabled:
+            return True
+            
+        # 检查是否有有效的发送客户端
+        if self.mode == "webhook" and not self.bot:
+            return True
+        elif self.mode == "app" and not self.lark_message:
             return True
 
         # 读取上一次的数据
@@ -600,9 +488,11 @@ class FeishuNotifier:
         if not self.enabled:
             return True  # 如果未启用，视为成功（不影响主流程）
 
-        # 应用模式下不需要bot初始化
+        # 检查是否有有效的发送客户端
         if self.mode == "webhook" and not self.bot:
             return True  # Webhook模式下如果bot未初始化，视为成功
+        elif self.mode == "app" and not self.lark_message:
+            return True  # 应用模式下如果lark_message未初始化，视为成功
 
         try:
             # 构建消息内容
@@ -618,6 +508,11 @@ class FeishuNotifier:
             daily = usage.get('daily', {})
             requests_count = daily.get('requests', 0)
             tokens_count = daily.get('allTokens', 0)
+            daily_cost = daily.get('cost', 0)
+            
+            # 获取会话窗口成本
+            session_window = usage.get('sessionWindow', {})
+            session_cost = session_window.get('totalCost', 0)
 
             # 构建美化的卡片消息
             status_emoji = "🔴" if is_rate_limited else "🟢"
@@ -704,6 +599,18 @@ class FeishuNotifier:
                         "tag": "lark_md",
                         "content": f"**今日Token**\n{tokens_count:,}"
                     }
+                }, {
+                    "is_short": True,
+                    "text": {
+                        "tag": "lark_md",
+                        "content": f"**今日成本**\n${daily_cost:.4f}"
+                    }
+                }, {
+                    "is_short": True,
+                    "text": {
+                        "tag": "lark_md",
+                        "content": f"**会话成本**\n${session_cost:.4f}" if session_cost > 0 else "**会话成本**\n$0.0000"
+                    }
                 }]
             }]
 
@@ -765,8 +672,10 @@ class FeishuNotifier:
         if not self.enabled:
             return True
 
-        # 应用模式下不需要bot初始化
+        # 检查是否有有效的发送客户端
         if self.mode == "webhook" and not self.bot:
+            return True
+        elif self.mode == "app" and not self.lark_message:
             return True
 
         try:
