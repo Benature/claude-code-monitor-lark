@@ -6,6 +6,10 @@
 
 import json
 import sys
+import base64
+import hashlib
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, Dict, Any
@@ -24,7 +28,9 @@ class FeishuNotifier:
                  server_host: str = "localhost",
                  server_port: int = 8155,
                  simple_key: str = "key",
-                 button_config: Optional[Dict[str, Any]] = None):
+                 button_config: Optional[Dict[str, Any]] = None,
+                 encrypt_key: Optional[str] = None,
+                 verification_token: Optional[str] = None):
         """
         初始化飞书通知器
 
@@ -38,6 +44,8 @@ class FeishuNotifier:
             server_port: 服务器端口
             simple_key: API访问密钥
             button_config: 按钮配置字典
+            encrypt_key: 飞书加密密钥 (用于Challenge验证)
+            verification_token: 飞书验证Token
         """
         self.webhook_url = webhook_url
         self.app_id = app_id
@@ -48,6 +56,8 @@ class FeishuNotifier:
         self.server_port = server_port
         self.simple_key = simple_key
         self.button_config = button_config or {}
+        self.encrypt_key = encrypt_key
+        self.verification_token = verification_token
         self.bot = None
         self.lark_message = None
         self.mode = self._determine_mode()
@@ -68,11 +78,9 @@ class FeishuNotifier:
                     self.bot = LarkWebhook(self.webhook_url)
                 elif self.mode == "app" and self.app_id and self.app_secret:
                     # 使用 LarkMessage 替代原生 requests
-                    self.lark_message = LarkMessage(
-                        app_id=self.app_id,
-                        app_secret=self.app_secret,
-                        log_level='ERROR'
-                    )
+                    self.lark_message = LarkMessage(app_id=self.app_id,
+                                                    app_secret=self.app_secret,
+                                                    log_level='ERROR')
                     print("✅ LarkMessage 初始化成功")
             except Exception as e:
                 print(f"警告：初始化飞书机器人失败: {e}")
@@ -116,6 +124,137 @@ class FeishuNotifier:
         """
         return self.mode == "app"
 
+    def decrypt_challenge(self, encrypted_data: str) -> Optional[str]:
+        """
+        解密飞书 Challenge 数据 (AES-256-CBC)
+        
+        Args:
+            encrypted_data: Base64编码的加密数据
+            
+        Returns:
+            解密后的JSON字符串，失败返回None
+        """
+        if not self.encrypt_key:
+            print("警告：未配置加密密钥，无法解密Challenge")
+            return None
+
+        try:
+            # 1. 对 Encrypt Key 进行 SHA256 哈希，得到密钥
+            key = hashlib.sha256(self.encrypt_key.encode('utf-8')).digest()
+
+            # 2. Base64解码
+            encrypted_bytes = base64.b64decode(encrypted_data)
+
+            # 3. 提取前16字节作为IV
+            iv = encrypted_bytes[:16]
+            ciphertext = encrypted_bytes[16:]
+
+            # 4. 使用 AES-256-CBC 解密
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            decrypted_bytes = cipher.decrypt(ciphertext)
+
+            # 5. 移除PKCS7填充
+            decrypted_data = unpad(decrypted_bytes, AES.block_size)
+
+            # 6. 转换为字符串
+            return decrypted_data.decode('utf-8')
+
+        except Exception as e:
+            print(f"解密Challenge时发生错误: {e}")
+            return None
+
+    def verify_challenge_request(self, request_data: Dict[str, Any]) -> bool:
+        """
+        验证飞书Challenge请求的合法性
+        
+        Args:
+            request_data: 请求数据字典
+            
+        Returns:
+            布尔值表示验证是否成功
+        """
+        try:
+            # 如果配置了verification_token，验证token
+            if self.verification_token:
+                request_token = request_data.get('token')
+                if not request_token or request_token != self.verification_token:
+                    print("Challenge验证失败：Token不匹配")
+                    return False
+
+            # 验证请求类型
+            request_type = request_data.get('type')
+            if request_type != 'url_verification':
+                print(f"Challenge验证失败：请求类型错误 ({request_type})")
+                return False
+
+            # 验证challenge字段存在
+            challenge = request_data.get('challenge')
+            if not challenge:
+                print("Challenge验证失败：缺少challenge字段")
+                return False
+
+            return True
+
+        except Exception as e:
+            print(f"验证Challenge请求时发生错误: {e}")
+            return False
+
+    def process_challenge_request(
+            self, request_body: str) -> Optional[Dict[str, str]]:
+        """
+        处理飞书Challenge请求
+        
+        支持明文和加密两种模式：
+        - 明文模式：直接解析JSON并返回challenge
+        - 加密模式：先解密再解析JSON并返回challenge
+        
+        Args:
+            request_body: 请求体字符串
+            
+        Returns:
+            包含challenge的响应字典，失败返回None
+        """
+        try:
+            # 先尝试作为JSON解析（明文模式）
+            try:
+                request_data = json.loads(request_body)
+
+                # 检查是否为加密模式（包含encrypt字段）
+                if 'encrypt' in request_data:
+                    print("检测到加密模式Challenge请求")
+
+                    # 解密数据
+                    encrypted_data = request_data['encrypt']
+                    decrypted_json = self.decrypt_challenge(encrypted_data)
+
+                    if not decrypted_json:
+                        print("Challenge解密失败")
+                        return None
+
+                    # 解析解密后的JSON
+                    decrypted_data = json.loads(decrypted_json)
+                    request_data = decrypted_data
+                    print("Challenge解密成功")
+                else:
+                    print("检测到明文模式Challenge请求")
+
+            except json.JSONDecodeError:
+                print("Challenge请求JSON解析失败")
+                return None
+
+            # 验证请求合法性
+            if not self.verify_challenge_request(request_data):
+                return None
+
+            # 提取并返回challenge
+            challenge = request_data.get('challenge')
+            print(f"处理Challenge请求成功，返回challenge: {challenge}")
+
+            return {"challenge": challenge}
+
+        except Exception as e:
+            print(f"处理Challenge请求时发生错误: {e}")
+            return None
 
     def _get_chat_list(self) -> list:
         """
@@ -130,7 +269,7 @@ class FeishuNotifier:
         try:
             # 使用 LarkMessage 的内置方法获取群聊列表
             chats = self.lark_message.get_group_chat_list()
-            
+
             if isinstance(chats, dict) and chats.get("code") == 0:
                 chat_items = chats.get("data", {}).get("items", [])
                 print(f"获取到 {len(chat_items)} 个群聊")
@@ -181,7 +320,6 @@ class FeishuNotifier:
             print("警告：无法获取到任何群聊")
             return None
 
-
     def _send_message(self, message_payload: dict) -> bool:
         """
         统一的消息发送方法，根据模式选择发送方式
@@ -200,7 +338,7 @@ class FeishuNotifier:
                 return False
 
             print(f"🎯 发送飞书消息到群聊: {chat_id}")
-            
+
             try:
                 # 检查消息类型并使用相应的方法发送
                 if message_payload.get("msg_type") == "interactive":
@@ -209,26 +347,23 @@ class FeishuNotifier:
                         content=message_payload.get("card"),  # 卡片内容
                         receive_id=chat_id,
                         msg_type="interactive",
-                        receive_id_type="chat_id"
-                    )
+                        receive_id_type="chat_id")
                 else:
                     # 对于其他类型消息，使用通用的 send 方法
-                    result = self.lark_message.send(
-                        content=message_payload,
-                        receive_id=chat_id
-                    )
-                
+                    result = self.lark_message.send(content=message_payload,
+                                                    receive_id=chat_id)
+
                 if isinstance(result, dict) and result.get("code") == 0:
                     print("✅ 应用模式消息发送成功")
                     return True
                 else:
                     print(f"❌ 应用模式消息发送失败: {result}")
                     return False
-                    
+
             except Exception as e:
                 print(f"❌ 发送应用模式消息时发生异常: {e}")
                 return False
-                
+
         elif self.mode == "webhook" and self.bot:
             # Webhook模式：使用 LarkWebhook 发送
             try:
@@ -444,7 +579,7 @@ class FeishuNotifier:
         """
         if not self.enabled:
             return True
-            
+
         # 检查是否有有效的发送客户端
         if self.mode == "webhook" and not self.bot:
             return True
@@ -460,8 +595,9 @@ class FeishuNotifier:
 
         for account in accounts_data:
             # 检查是否强制发送或状态发生变化
-            should_send = force_notify or self._has_rate_limit_status_changed(account, previous_accounts)
-            
+            should_send = force_notify or self._has_rate_limit_status_changed(
+                account, previous_accounts)
+
             if should_send:
                 # 发送通知
                 success = self.send_rate_limit_notification(account)
@@ -516,7 +652,7 @@ class FeishuNotifier:
             requests_count = daily.get('requests', 0)
             tokens_count = daily.get('allTokens', 0)
             daily_cost = daily.get('cost', 0)
-            
+
             # 获取会话窗口成本
             session_window = usage.get('sessionWindow', {})
             session_cost = session_window.get('totalCost', 0)
@@ -615,8 +751,11 @@ class FeishuNotifier:
                 }, {
                     "is_short": True,
                     "text": {
-                        "tag": "lark_md",
-                        "content": f"**会话成本**\n${session_cost:.4f}" if session_cost > 0 else "**会话成本**\n$0.0000"
+                        "tag":
+                        "lark_md",
+                        "content":
+                        f"**会话成本**\n${session_cost:.4f}"
+                        if session_cost > 0 else "**会话成本**\n$0.0000"
                     }
                 }]
             }]
@@ -628,6 +767,7 @@ class FeishuNotifier:
 
             # 使用配置化的按钮
             button_actions = self._get_button_actions()
+            print(button_actions)
             if button_actions:
                 actions_element = {"tag": "action", "actions": button_actions}
                 card_message["card"]["elements"].append(actions_element)
@@ -771,6 +911,8 @@ def create_notifier_from_config(
         server_port = server_config.get('port', 8155)
         simple_key = auth_config.get('simple_key', 'key')
         button_config = feishu_config.get('buttons', {})
+        encrypt_key = feishu_config.get('encrypt_key')
+        verification_token = feishu_config.get('verification_token')
 
         if enabled and (webhook_url or (app_id and app_secret)):
             return FeishuNotifier(webhook_url=webhook_url,
@@ -781,7 +923,9 @@ def create_notifier_from_config(
                                   server_host=server_host,
                                   server_port=server_port,
                                   simple_key=simple_key,
-                                  button_config=button_config)
+                                  button_config=button_config,
+                                  encrypt_key=encrypt_key,
+                                  verification_token=verification_token)
         else:
             print("飞书通知未启用或未配置有效的webhook_url/app_id/app_secret")
             return None

@@ -168,6 +168,9 @@ python3 tests/test_system.py
 
 # Run all tests manually
 for test in tests/test_*.py; do python3 "$test"; done
+
+# Test Feishu Challenge verification
+python tests/test_challenge.py
 ```
 
 ## 配置文件
@@ -322,6 +325,10 @@ system:
 - **Interactive Buttons**: Feishu notifications include configurable buttons (URL跳转 or 回调模式)
 - **Button Configuration**: Flexible button actions with support for URL redirects and callback functions
 - **Feishu Callback Support**: Built-in callback endpoint for handling Feishu bot URL verification and interactive events
+- **Challenge Verification**: Full support for Feishu Challenge verification (both plain and encrypted modes)
+  - **Plain Mode**: Direct JSON challenge handling
+  - **Encrypted Mode**: AES-256-CBC decryption with SHA256 key derivation
+  - **Token Validation**: Optional Verification Token validation for enhanced security
 - **HTTP API**: FastAPI server for remote monitoring control with authentication
 - **Flexible Configuration**: Supports both JSON and YAML configuration formats with automatic detection
 - **Error Handling**: Comprehensive error handling with fallback notifications
@@ -376,6 +383,8 @@ The system expects API responses with this structure:
 
 **飞书回调端点:**
 - **飞书回调**: `POST /callback/feishu` - 接收飞书服务器回调（支持URL验证和交互事件）
+  - **Challenge验证**: 自动处理明文和加密模式的URL验证
+  - **交互事件**: 处理卡片按钮点击事件
 
 ### FastAPI支持的命令:
 - `check_accounts` - 检查账户限流状态
@@ -383,6 +392,61 @@ The system expects API responses with this structure:
 - `notify_accounts` - 发送账户状态通知
 - `notify_api_usage` - 发送API使用情况通知
 - `full_monitor` - 完整监控流程（账户+API）
+
+## 飞书Challenge验证功能
+
+### 功能概述
+系统完整支持飞书开放平台的Challenge验证机制，包括明文和加密两种模式：
+
+#### 验证模式
+1. **明文模式** (未配置encrypt_key)
+   - 飞书直接发送包含challenge字段的JSON请求
+   - 系统直接解析并返回challenge值
+   - 适用于简单配置和测试环境
+
+2. **加密模式** (已配置encrypt_key)
+   - 飞书发送加密的challenge请求
+   - 系统使用AES-256-CBC算法解密后返回challenge值
+   - 使用SHA256哈希encrypt_key作为解密密钥
+   - 适用于生产环境，提供更高安全性
+
+#### 配置参数
+```yaml
+notification:
+  feishu:
+    # 可选：飞书加密密钥，用于Challenge验证
+    encrypt_key: "your_encrypt_key"
+    # 可选：飞书验证Token，用于验证请求来源
+    verification_token: "your_verification_token"
+```
+
+#### 验证流程
+1. 接收飞书服务器发送的POST请求到 `/callback/feishu`
+2. 检测请求类型（明文或加密）
+3. 解密数据（如果是加密模式）
+4. 验证Token（如果配置了verification_token）
+5. 提取challenge字段
+6. 在1秒内返回challenge响应
+
+#### 使用示例
+```bash
+# 测试Challenge验证功能
+python tests/test_challenge.py
+
+# 测试curl命令（明文模式）
+curl -X POST http://localhost:8155/callback/feishu \
+  -H "Content-Type: application/json" \
+  -d '{"challenge":"test123","type":"url_verification","token":"your_token"}'
+
+# 预期响应
+{"challenge":"test123"}
+```
+
+#### 安全特性
+- **时效性验证**: 必须在1秒内响应，防止重放攻击
+- **Token校验**: 可选的verification_token验证，确保请求来源合法
+- **加密传输**: 支持AES-256-CBC加密，保护传输数据安全
+- **错误处理**: 完善的异常处理，确保服务稳定性
 
 ## 安全限制配置
 

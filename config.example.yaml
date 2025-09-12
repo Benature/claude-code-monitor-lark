@@ -39,6 +39,8 @@ notification:
     # app_id: "cli_your_app_id"                # 飞书应用ID
     # app_secret: "your_app_secret"            # 飞书应用Secret
     # chat_id: "oc_your_chat_id"               # 目标群聊ID（可选，不填则自动获取第一个群聊）
+    # encrypt_key: "your_encrypt_key"          # 飞书加密密钥（可选，用于Challenge验证）
+    # verification_token: "your_verification_token"  # 飞书验证Token（可选，用于Challenge验证）
     # 注意：如果配置了app_id和app_secret，将优先使用应用模式
     
     card_style: "rich"                         # 卡片样式：simple/rich
@@ -134,6 +136,8 @@ monitoring:
 #     app_id: "cli_your_app_id"
 #     app_secret: "your_app_secret"
 #     chat_id: "oc_your_chat_id"               # 可选：指定群聊ID，不填则自动获取第一个群聊
+#     encrypt_key: "your_encrypt_key"          # 可选：飞书加密密钥，用于Challenge验证
+#     verification_token: "your_verification_token"  # 可选：飞书验证Token，用于Challenge验证
 #     buttons:
 #       action_type: "callback"
 #       callback_actions:
@@ -146,3 +150,23 @@ monitoring:
 #         - text: "🚀 完整监控"
 #           value: "full_monitor"
 #           style: "primary"
+#
+# =====================================
+# 飞书 Challenge 验证说明
+# =====================================
+#
+# 飞书开放平台为了验证回调URL的有效性，会发送Challenge验证请求。
+# 系统支持两种验证模式：
+#
+# 1. 明文模式（未配置encrypt_key）：
+#    飞书直接发送包含challenge字段的JSON请求
+#    系统直接解析并返回challenge值
+#
+# 2. 加密模式（已配置encrypt_key）：
+#    飞书发送加密的challenge请求
+#    系统使用encrypt_key解密后返回challenge值
+#
+# 配置说明：
+# - encrypt_key: 在飞书开放平台应用设置中配置的Encrypt Key
+# - verification_token: 在飞书开放平台应用设置中配置的Verification Token
+# - 两者都是可选配置，但推荐配置以提高安全性

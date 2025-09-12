@@ -36,7 +36,7 @@ def load_api_config() -> Dict[str, Any]:
         config_manager = create_config_manager('config.yaml')
         server_config = config_manager.get_server_config()
         auth_config = server_config.get('auth', {})
-        
+
         return {
             "api_key": auth_config.get("api_key", ""),
             "api_secret": auth_config.get("api_secret", ""),
@@ -44,7 +44,12 @@ def load_api_config() -> Dict[str, Any]:
             "simple_key": auth_config.get("simple_key", "")
         }
     except Exception:
-        return {"api_key": "", "api_secret": "", "require_signature": False, "simple_key": ""}
+        return {
+            "api_key": "",
+            "api_secret": "",
+            "require_signature": False,
+            "simple_key": ""
+        }
 
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(
@@ -138,8 +143,7 @@ async def root():
         "endpoints": [
             "/command - 执行监控命令 (需要认证)", "/trigger/{command} - 简单触发命令 (无需认证)",
             "/trigger/{command}/{config_file} - 指定配置文件触发 (无需认证)",
-            "/callback/feishu - 飞书回调端点",
-            "/health - 健康检查", "/docs - API文档"
+            "/callback/feishu - 飞书回调端点", "/health - 健康检查", "/docs - API文档"
         ],
         "simple_triggers": [
             "/trigger/monitor_accounts?k=your_key - 监控账户状态并发送通知",
@@ -178,10 +182,12 @@ async def execute_command(request: CommandRequest,
             return await _monitor_accounts(config_file, request.force_notify)
 
         elif command == "monitor_api_usage":
-            return await _monitor_api_usage(config_file, time_range, request.force_notify)
+            return await _monitor_api_usage(config_file, time_range,
+                                            request.force_notify)
 
         elif command == "full_monitor":
-            return await _full_monitor(config_file, time_range, request.force_notify)
+            return await _full_monitor(config_file, time_range,
+                                       request.force_notify)
 
         else:
             raise HTTPException(
@@ -197,7 +203,8 @@ async def execute_command(request: CommandRequest,
                                timestamp=datetime.now().isoformat())
 
 
-async def _monitor_accounts(config_file: str, force_notify: bool = False) -> CommandResponse:
+async def _monitor_accounts(config_file: str,
+                            force_notify: bool = False) -> CommandResponse:
     """监控账户状态并发送通知"""
     try:
         # 爬取账户数据
@@ -223,15 +230,16 @@ async def _monitor_accounts(config_file: str, force_notify: bool = False) -> Com
                 return CommandResponse(success=False,
                                        message="飞书通知器初始化失败",
                                        timestamp=datetime.now().isoformat())
-            
+
             # 使用批量通知方法，传入账户数据
             notification_result = notifier.send_rate_limit_notifications_batch(
                 data.get('data', []), force_notify=force_notify)
 
-            return CommandResponse(success=True,
-                                   message=f"账户监控完成，通知发送: {'成功' if notification_result else '失败'}",
-                                   data=data,
-                                   timestamp=datetime.now().isoformat())
+            return CommandResponse(
+                success=True,
+                message=f"账户监控完成，通知发送: {'成功' if notification_result else '失败'}",
+                data=data,
+                timestamp=datetime.now().isoformat())
         except Exception as e:
             return CommandResponse(success=False,
                                    message=f"发送通知失败: {str(e)}",
@@ -244,7 +252,7 @@ async def _monitor_accounts(config_file: str, force_notify: bool = False) -> Com
 
 
 async def _monitor_api_usage(config_file: str,
-                             time_range: str, 
+                             time_range: str,
                              force_notify: bool = False) -> CommandResponse:
     """监控API使用情况并发送通知"""
     try:
@@ -284,7 +292,9 @@ async def _monitor_api_usage(config_file: str,
                                timestamp=datetime.now().isoformat())
 
 
-async def _full_monitor(config_file: str, time_range: str, force_notify: bool = False) -> CommandResponse:
+async def _full_monitor(config_file: str,
+                        time_range: str,
+                        force_notify: bool = False) -> CommandResponse:
     """完整监控流程"""
     try:
         results = {
@@ -303,7 +313,8 @@ async def _full_monitor(config_file: str, time_range: str, force_notify: bool = 
             results["notifications"]["accounts_sent"] = True
 
         # 2. 监控API使用情况并发送通知
-        api_result = await _monitor_api_usage(config_file, time_range, force_notify)
+        api_result = await _monitor_api_usage(config_file, time_range,
+                                              force_notify)
         results["api_usage"] = api_result.dict()
         if api_result.success:
             results["notifications"]["api_usage_sent"] = True
@@ -335,7 +346,9 @@ async def _full_monitor(config_file: str, time_range: str, force_notify: bool = 
 
 # 简单的GET端点，通过参数验证，直接通过URL触发
 @app.get("/trigger/{command}")
-async def trigger_command_simple(command: str, k: Optional[str] = None, f: Optional[bool] = False):
+async def trigger_command_simple(command: str,
+                                 k: Optional[str] = None,
+                                 f: Optional[bool] = False):
     """
     简单触发命令的GET端点（参数验证）
     
@@ -465,81 +478,93 @@ def _check_feishu_app_mode() -> bool:
         config_manager = create_config_manager('config.yaml')
         notification_config = config_manager.get_notification_config()
         feishu_config = notification_config.get('feishu', {})
-        
+
         app_id = feishu_config.get('app_id')
         app_secret = feishu_config.get('app_secret')
-        
+
         return bool(app_id and app_secret)
     except Exception:
         return False
 
 
-@app.post("/callback/feishu")
+@app.post("/")
 async def feishu_callback(request: Request):
     """
     飞书回调端点
     
     处理飞书服务器发送的回调事件，包括：
-    1. URL验证（challenge）
+    1. URL验证（challenge）- 支持明文和加密模式
     2. 交互事件处理（按钮点击）
     
     注意：回调功能仅在配置app_id和app_secret时可用
     """
     try:
-        # 检查是否为应用模式
-        if not _check_feishu_app_mode():
-            print("警告：收到飞书回调请求，但当前配置为Webhook模式，回调功能不可用")
-            raise HTTPException(
-                status_code=400, 
-                detail="回调功能仅在飞书应用模式（app_id + app_secret）下可用"
-            )
-        
+        # 获取原始请求体
         request_body = await request.body()
-        data = json.loads(request_body)
-        
-        print(f"收到飞书回调: {data}")
-        
-        # 处理URL验证（challenge）
-        if "challenge" in data:
-            challenge = data["challenge"]
-            print(f"飞书URL验证，返回challenge: {challenge}")
-            return {"challenge": challenge}
-        
+        request_body_str = request_body.decode('utf-8')
+
+        print(f"收到飞书回调请求")
+
+        # 创建飞书通知器实例以处理Challenge验证
+        notifier = create_notifier_from_config('config.yaml')
+        if not notifier:
+            print("无法创建飞书通知器实例")
+            raise HTTPException(status_code=500, detail="飞书通知器配置错误")
+
+        # 首先尝试处理Challenge请求（支持明文和加密模式）
+        challenge_response = notifier.process_challenge_request(
+            request_body_str)
+        if challenge_response:
+            print(f"返回Challenge响应: {challenge_response}")
+            return challenge_response
+
+        # 如果不是Challenge请求，继续处理其他事件
+        # 检查是否为应用模式（仅限交互事件）
+        if not _check_feishu_app_mode():
+            print("警告：收到飞书回调请求，但当前配置为Webhook模式，交互功能不可用")
+            raise HTTPException(status_code=400,
+                                detail="交互功能仅在飞书应用模式（app_id + app_secret）下可用")
+
+        # 解析JSON数据
+        try:
+            data = json.loads(request_body_str)
+            print(f"解析飞书回调数据: {data}")
+        except json.JSONDecodeError:
+            print("飞书回调数据JSON解析失败")
+            raise HTTPException(status_code=400, detail="无效的JSON数据")
+
         # 处理交互事件（按钮点击）
         if "header" in data and "event" in data:
             event_type = data["header"].get("event_type", "")
-            
+
             if event_type == "im.message.receive_v1":
                 print("收到消息事件")
                 return {"code": 0}
-            
+
             elif event_type == "card.action.trigger":
                 print("收到卡片交互事件")
-                
+
                 # 获取交互数据
                 action = data["event"].get("action", {})
                 value = action.get("value", {})
-                
+
                 # 处理按钮点击
                 if isinstance(value, dict) and "command" in value:
                     command = value["command"]
                     print(f"处理按钮命令: {command}")
-                    
+
                     # 异步执行监控命令
                     asyncio.create_task(handle_callback_command(command))
-                    
-                    return {
-                        "code": 0,
-                        "msg": "ok",
-                        "data": {}
-                    }
-        
+
+                    return {"code": 0, "msg": "ok", "data": {}}
+
         # 默认返回成功
+        print("未识别的飞书回调事件，返回默认成功响应")
         return {"code": 0, "msg": "ok"}
-        
-    except json.JSONDecodeError:
-        print("飞书回调数据JSON解析失败")
-        raise HTTPException(status_code=400, detail="无效的JSON数据")
+
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
     except Exception as e:
         print(f"处理飞书回调时发生错误: {e}")
         raise HTTPException(status_code=500, detail=f"处理回调失败: {str(e)}")
@@ -553,22 +578,24 @@ async def handle_callback_command(command: str):
     """
     try:
         print(f"开始执行回调命令: {command}")
-        
+
         if command == "monitor_accounts":
             result = await _monitor_accounts('config.yaml', False)  # 回调不强制通知
             print(f"账户监控结果: {result.message}")
-            
+
         elif command == "monitor_api_usage":
-            result = await _monitor_api_usage('config.yaml', 'today', False)  # 回调不强制通知
+            result = await _monitor_api_usage('config.yaml', 'today',
+                                              False)  # 回调不强制通知
             print(f"API监控结果: {result.message}")
-            
+
         elif command == "full_monitor":
-            result = await _full_monitor('config.yaml', 'today', False)  # 回调不强制通知
+            result = await _full_monitor('config.yaml', 'today',
+                                         False)  # 回调不强制通知
             print(f"完整监控结果: {result.message}")
-            
+
         else:
             print(f"不支持的回调命令: {command}")
-            
+
     except Exception as e:
         print(f"执行回调命令时发生错误: {e}")
 
