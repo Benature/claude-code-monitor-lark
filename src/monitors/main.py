@@ -35,6 +35,10 @@ def main():
                         '-q',
                         action='store_true',
                         help='静默模式，不显示详细信息')
+    parser.add_argument('--force-notify',
+                        '-f',
+                        action='store_true',
+                        help='强制发送通知，不检查状态变化')
 
     args = parser.parse_args()
 
@@ -89,7 +93,7 @@ def main():
                 if accounts:
                     print(f"\n=== 发送飞书通知 ===")
                     notification_sent = notifier.send_rate_limit_notifications_batch(
-                        accounts, args.save_file)
+                        accounts, args.save_file, force_notify=args.force_notify)
 
                     # 通知发送完成后，保存当前数据到文件
                     if notification_sent or not args.quiet:

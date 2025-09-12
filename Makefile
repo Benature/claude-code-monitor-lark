@@ -1,7 +1,7 @@
 # Claude Limit Monitor Makefile
 # 包含常用的开发和运行命令
 
-.PHONY: help install clean test lint run run-api run-server run-dev run-quiet
+.PHONY: help install clean test lint run run-api run-server run-dev run-quiet run-force run-api-force
 .PHONY: scrape-accounts scrape-api check-limits notify test-notify
 .PHONY: server-dev server-prod client-test
 
@@ -19,6 +19,8 @@ help:
 	@echo "主要运行命令:"
 	@echo "  run         - 运行Claude账户监控（推荐）"
 	@echo "  run-api     - 运行API使用情况监控"
+	@echo "  run-force   - 强制发送Claude账户通知（无论状态是否变化）"
+	@echo "  run-api-force - 强制发送API使用通知"
 	@echo "  run-server  - 启动FastAPI服务器"
 	@echo "  run-dev     - 开发模式运行服务器（热重载）"
 	@echo "  run-quiet   - 静默模式运行监控"
@@ -72,6 +74,14 @@ run-dev:
 run-quiet:
 	@echo "静默模式运行监控..."
 	python main.py --quiet
+
+run-force:
+	@echo "强制发送Claude账户通知（无论状态是否变化）..."
+	python main.py --force-notify
+
+run-api-force:
+	@echo "强制发送API使用通知..."
+	python api_monitor.py --force-notify
 
 # 使用自定义配置运行
 run-config:

@@ -429,13 +429,15 @@ class FeishuNotifier:
     def send_rate_limit_notifications_batch(
             self,
             accounts_data: list,
-            data_file: str = 'claude_accounts.json') -> bool:
+            data_file: str = 'claude_accounts.json',
+            force_notify: bool = False) -> bool:
         """
         批量发送限流状态通知，只在状态发生变化时发送
 
         Args:
             accounts_data: 账户数据列表
             data_file: 上一次数据文件路径
+            force_notify: 强制发送通知，忽略状态变化检查
 
         Returns:
             是否有通知发送成功
@@ -457,12 +459,17 @@ class FeishuNotifier:
         sent_any = False
 
         for account in accounts_data:
-            # 检查状态是否发生变化
-            if self._has_rate_limit_status_changed(account, previous_accounts):
+            # 检查是否强制发送或状态发生变化
+            should_send = force_notify or self._has_rate_limit_status_changed(account, previous_accounts)
+            
+            if should_send:
                 # 发送通知
                 success = self.send_rate_limit_notification(account)
                 if success:
                     sent_any = True
+                    if force_notify:
+                        account_id = account.get('id')
+                        print(f"强制发送账户 {account_id} 通知成功")
                 else:
                     print(f"发送账户 {account.get('id')} 通知失败")
             else:

@@ -42,6 +42,8 @@ make install
 # 运行主要功能
 make run              # 运行Claude账户监控（推荐）
 make run-api          # 运行API使用情况监控
+make run-force        # 强制发送Claude账户通知（无论状态是否变化）
+make run-api-force    # 强制发送API使用通知
 make run-server       # 启动FastAPI服务器
 make run-dev          # 开发模式（热重载）
 
@@ -103,6 +105,10 @@ python main.py --skip-scrape
 python main.py --quiet
 python api_monitor.py --quiet
 
+# Force send notifications (ignore status change)
+python main.py --force-notify
+python api_monitor.py --force-notify
+
 # Individual components
 python -m src.scrapers.claude_scraper       # Only scrape Claude account data
 python -m src.scrapers.api_scraper          # Only scrape API usage data
@@ -140,6 +146,11 @@ curl "http://localhost:8155/trigger/full_monitor?k=your_simple_key"
 http://localhost:8155/trigger/monitor_accounts?k=your_simple_key    # 监控账户状态并发送通知
 http://localhost:8155/trigger/monitor_api_usage?k=your_simple_key   # 监控API使用情况并发送通知
 http://localhost:8155/trigger/full_monitor?k=your_simple_key        # 完整监控流程
+
+# 强制发送通知（添加f=true参数）：
+http://localhost:8155/trigger/monitor_accounts?k=your_simple_key&f=true    # 强制发送通知
+http://localhost:8155/trigger/monitor_api_usage?k=your_simple_key&f=true   # 强制发送通知
+http://localhost:8155/trigger/full_monitor?k=your_simple_key&f=true        # 强制发送完整监控通知
 
 # 使用自定义配置文件：
 http://localhost:8155/trigger/full_monitor/custom_config.yaml?k=your_simple_key

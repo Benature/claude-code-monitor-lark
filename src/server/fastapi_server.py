@@ -104,6 +104,7 @@ class CommandRequest(BaseModel):
     command: str
     config_file: Optional[str] = 'config.yaml'
     time_range: Optional[str] = 'today'
+    force_notify: Optional[bool] = False
     params: Optional[Dict[str, Any]] = None
 
 
@@ -174,13 +175,13 @@ async def execute_command(request: CommandRequest,
         print(f"执行命令: {command}")
 
         if command == "monitor_accounts":
-            return await _monitor_accounts(config_file)
+            return await _monitor_accounts(config_file, request.force_notify)
 
         elif command == "monitor_api_usage":
-            return await _monitor_api_usage(config_file, time_range)
+            return await _monitor_api_usage(config_file, time_range, request.force_notify)
 
         elif command == "full_monitor":
-            return await _full_monitor(config_file, time_range)
+            return await _full_monitor(config_file, time_range, request.force_notify)
 
         else:
             raise HTTPException(
@@ -196,7 +197,7 @@ async def execute_command(request: CommandRequest,
                                timestamp=datetime.now().isoformat())
 
 
-async def _monitor_accounts(config_file: str) -> CommandResponse:
+async def _monitor_accounts(config_file: str, force_notify: bool = False) -> CommandResponse:
     """监控账户状态并发送通知"""
     try:
         # 爬取账户数据
@@ -225,7 +226,7 @@ async def _monitor_accounts(config_file: str) -> CommandResponse:
             
             # 使用批量通知方法，传入账户数据
             notification_result = notifier.send_rate_limit_notifications_batch(
-                data.get('data', []))
+                data.get('data', []), force_notify=force_notify)
 
             return CommandResponse(success=True,
                                    message=f"账户监控完成，通知发送: {'成功' if notification_result else '失败'}",
@@ -243,7 +244,8 @@ async def _monitor_accounts(config_file: str) -> CommandResponse:
 
 
 async def _monitor_api_usage(config_file: str,
-                             time_range: str) -> CommandResponse:
+                             time_range: str, 
+                             force_notify: bool = False) -> CommandResponse:
     """监控API使用情况并发送通知"""
     try:
         # 爬取API使用数据
@@ -282,7 +284,7 @@ async def _monitor_api_usage(config_file: str,
                                timestamp=datetime.now().isoformat())
 
 
-async def _full_monitor(config_file: str, time_range: str) -> CommandResponse:
+async def _full_monitor(config_file: str, time_range: str, force_notify: bool = False) -> CommandResponse:
     """完整监控流程"""
     try:
         results = {
@@ -295,13 +297,13 @@ async def _full_monitor(config_file: str, time_range: str) -> CommandResponse:
         }
 
         # 1. 监控账户状态并发送通知
-        accounts_result = await _monitor_accounts(config_file)
+        accounts_result = await _monitor_accounts(config_file, force_notify)
         results["accounts"] = accounts_result.dict()
         if accounts_result.success:
             results["notifications"]["accounts_sent"] = True
 
         # 2. 监控API使用情况并发送通知
-        api_result = await _monitor_api_usage(config_file, time_range)
+        api_result = await _monitor_api_usage(config_file, time_range, force_notify)
         results["api_usage"] = api_result.dict()
         if api_result.success:
             results["notifications"]["api_usage_sent"] = True
@@ -333,7 +335,7 @@ async def _full_monitor(config_file: str, time_range: str) -> CommandResponse:
 
 # 简单的GET端点，通过参数验证，直接通过URL触发
 @app.get("/trigger/{command}")
-async def trigger_command_simple(command: str, k: Optional[str] = None):
+async def trigger_command_simple(command: str, k: Optional[str] = None, f: Optional[bool] = False):
     """
     简单触发命令的GET端点（参数验证）
     
@@ -346,6 +348,7 @@ async def trigger_command_simple(command: str, k: Optional[str] = None):
     - GET /trigger/monitor_accounts?k=your_key
     - GET /trigger/monitor_api_usage?k=your_key
     - GET /trigger/full_monitor?k=your_key
+    - 添加&f=true参数强制发送通知
     """
 
     try:
@@ -373,13 +376,13 @@ async def trigger_command_simple(command: str, k: Optional[str] = None):
         print(f"简单触发命令: {command}")
 
         if command == "monitor_accounts":
-            return await _monitor_accounts('config.yaml')
+            return await _monitor_accounts('config.yaml', f)
 
         elif command == "monitor_api_usage":
-            return await _monitor_api_usage('config.yaml', 'today')
+            return await _monitor_api_usage('config.yaml', 'today', f)
 
         elif command == "full_monitor":
-            return await _full_monitor('config.yaml', 'today')
+            return await _full_monitor('config.yaml', 'today', f)
 
         else:
             return CommandResponse(
@@ -398,7 +401,8 @@ async def trigger_command_simple(command: str, k: Optional[str] = None):
 @app.get("/trigger/{command}/{config_file}")
 async def trigger_command_with_config(command: str,
                                       config_file: str,
-                                      k: Optional[str] = None):
+                                      k: Optional[str] = None,
+                                      f: Optional[bool] = False):
     """
     简单触发命令的GET端点（参数验证，可指定配置文件）
     
@@ -428,13 +432,13 @@ async def trigger_command_with_config(command: str,
         print(f"简单触发命令: {command}, 配置文件: {config_file}")
 
         if command == "monitor_accounts":
-            return await _monitor_accounts(config_file)
+            return await _monitor_accounts(config_file, f)
 
         elif command == "monitor_api_usage":
-            return await _monitor_api_usage(config_file, 'today')
+            return await _monitor_api_usage(config_file, 'today', f)
 
         elif command == "full_monitor":
-            return await _full_monitor(config_file, 'today')
+            return await _full_monitor(config_file, 'today', f)
 
         else:
             return CommandResponse(
@@ -551,15 +555,15 @@ async def handle_callback_command(command: str):
         print(f"开始执行回调命令: {command}")
         
         if command == "monitor_accounts":
-            result = await _monitor_accounts('config.yaml')
+            result = await _monitor_accounts('config.yaml', False)  # 回调不强制通知
             print(f"账户监控结果: {result.message}")
             
         elif command == "monitor_api_usage":
-            result = await _monitor_api_usage('config.yaml', 'today')
+            result = await _monitor_api_usage('config.yaml', 'today', False)  # 回调不强制通知
             print(f"API监控结果: {result.message}")
             
         elif command == "full_monitor":
-            result = await _full_monitor('config.yaml', 'today')
+            result = await _full_monitor('config.yaml', 'today', False)  # 回调不强制通知
             print(f"完整监控结果: {result.message}")
             
         else:

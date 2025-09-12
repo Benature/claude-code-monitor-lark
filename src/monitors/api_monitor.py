@@ -34,6 +34,10 @@ def main():
                         '-n',
                         action='store_true',
                         help='禁用飞书通知，仅爬取数据')
+    parser.add_argument('--force-notify',
+                        '-f',
+                        action='store_true',
+                        help='强制发送通知（对API监控无特殊效果，仅保持一致性）')
 
     args = parser.parse_args()
 
