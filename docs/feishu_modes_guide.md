@@ -50,7 +50,7 @@
 ### 应用模式设置
 1. **创建应用**：在飞书开放平台创建企业自建应用
 2. **开通机器人**：为应用开通机器人能力
-3. **配置回调**：设置事件订阅回调地址：`http://your-domain:8155/callback/feishu`
+3. **配置回调**：设置事件订阅，添加 `card.action.trigger` 事件，回调地址：`http://your-domain:8155/lark/callback`
 4. **获取凭证**：获取app_id和app_secret
 5. **配置系统**：参考 `config.example.yaml` 中的【示例2】，取消注释并填入app_id和app_secret
 6. **测试功能**：运行 `make test-modes` 和 `make test-callback` 测试

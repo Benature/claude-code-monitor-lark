@@ -108,7 +108,7 @@ make test-callback
 **原因**：未配置飞书应用的回调地址
 **解决**：
 1. 在飞书开放平台配置事件订阅
-2. 设置回调地址：`http://your-domain:8155/callback/feishu`
+2. 设置回调地址：`http://your-domain:8155/lark/callback`
 3. 确保服务器可从外网访问
 
 ## 权限配置
@@ -125,4 +125,5 @@ make test-callback
 
 ### 事件订阅
 - 启用"卡片回调"事件
-- 设置回调地址：`http://your-domain:8155/callback/feishu`
+- 添加回调事件：`card.action.trigger` - 卡片按钮点击事件
+- 设置回调地址：`http://your-domain:8155/lark/callback`

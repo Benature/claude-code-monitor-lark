@@ -143,7 +143,7 @@ async def root():
         "endpoints": [
             "/command - 执行监控命令 (需要认证)", "/trigger/{command} - 简单触发命令 (无需认证)",
             "/trigger/{command}/{config_file} - 指定配置文件触发 (无需认证)",
-            "/callback/feishu - 飞书回调端点", "/health - 健康检查", "/docs - API文档"
+            "/lark/callback - 飞书回调端点", "/health - 健康检查", "/docs - API文档"
         ],
         "simple_triggers": [
             "/trigger/monitor_accounts?k=your_key - 监控账户状态并发送通知",
@@ -487,7 +487,7 @@ def _check_feishu_app_mode() -> bool:
         return False
 
 
-@app.post("/")
+@app.post("/lark/callback")
 async def feishu_callback(request: Request):
     """
     飞书回调端点

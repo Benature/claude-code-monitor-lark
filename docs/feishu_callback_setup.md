@@ -35,7 +35,8 @@
 1. **创建机器人应用**
 2. **配置事件与回调**：
    - 事件订阅：启用 `卡片回调` 事件
-   - 设置回调地址：`http://your-domain:8155/callback/feishu`
+   - 添加回调事件：`card.action.trigger` - 卡片按钮点击事件
+   - 设置回调地址：`http://your-domain:8155/lark/callback`
    - 飞书会自动发送challenge验证（系统会自动处理）
 
 3. **获取Webhook URL**：
@@ -88,13 +89,13 @@ python start_server.py --host 0.0.0.0 --port 8155
 ## 工作流程
 
 ### 回调验证流程
-1. 飞书服务器向 `/callback/feishu` 发送challenge验证
+1. 飞书服务器向 `/lark/callback` 发送challenge验证
 2. 系统自动解析并返回challenge值
 3. 验证通过后，飞书开始发送实际回调事件
 
 ### 按钮点击流程
 1. 用户点击卡片上的回调按钮
-2. 飞书发送回调事件到 `/callback/feishu`
+2. 飞书发送回调事件到 `/lark/callback`
 3. 系统解析按钮的 `value.command` 字段
 4. 立即返回成功响应给飞书（避免超时）
 5. 后台异步执行对应的监控命令
@@ -149,7 +150,7 @@ python tests/test_feishu_callback.py
 
 1. **验证回调端点**：
    ```bash
-   curl -X POST http://localhost:8155/callback/feishu \
+   curl -X POST http://localhost:8155/lark/callback \
      -H "Content-Type: application/json" \
      -d '{"challenge":"test123","timestamp":"1234567890","nonce":"abc"}'
    ```
@@ -157,7 +158,7 @@ python tests/test_feishu_callback.py
 
 2. **测试按钮回调**：
    ```bash
-   curl -X POST http://localhost:8155/callback/feishu \
+   curl -X POST http://localhost:8155/lark/callback \
      -H "Content-Type: application/json" \
      -d '{
        "schema": "2.0",
@@ -185,7 +186,7 @@ python tests/test_feishu_callback.py
 
 1. **飞书验证失败**
    - 检查回调URL是否可以从外网访问
-   - 确认端口号和路径正确：`/callback/feishu`
+   - 确认端口号和路径正确：`/lark/callback`
    - 查看服务器日志是否收到challenge请求
 
 2. **按钮点击无响应**

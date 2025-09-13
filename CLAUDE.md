@@ -293,7 +293,7 @@ system:
 
 #### 2. 回调模式 (action_type: "callback")  
 - 点击按钮触发回调函数
-- 需要配置飞书机器人接收回调事件
+- 需要配置飞书机器人接收回调事件：在飞书开放平台事件订阅中添加 `card.action.trigger` 事件
 - 回调数据会包含配置的value值
 - **兼容性**：仅应用模式支持，Webhook模式会自动切换为URL模式
 
@@ -382,7 +382,7 @@ The system expects API responses with this structure:
 - **指定配置**: `GET /trigger/{command}/{config_file}?k=your_key` - 使用指定配置文件触发
 
 **飞书回调端点:**
-- **飞书回调**: `POST /callback/feishu` - 接收飞书服务器回调（支持URL验证和交互事件）
+- **飞书回调**: `POST /lark/callback` - 接收飞书服务器回调（支持URL验证和交互事件）
   - **Challenge验证**: 自动处理明文和加密模式的URL验证
   - **交互事件**: 处理卡片按钮点击事件
 
@@ -421,7 +421,7 @@ notification:
 ```
 
 #### 验证流程
-1. 接收飞书服务器发送的POST请求到 `/callback/feishu`
+1. 接收飞书服务器发送的POST请求到 `/lark/callback`
 2. 检测请求类型（明文或加密）
 3. 解密数据（如果是加密模式）
 4. 验证Token（如果配置了verification_token）
@@ -434,7 +434,7 @@ notification:
 python tests/test_challenge.py
 
 # 测试curl命令（明文模式）
-curl -X POST http://localhost:8155/callback/feishu \
+curl -X POST http://localhost:8155/lark/callback \
   -H "Content-Type: application/json" \
   -d '{"challenge":"test123","type":"url_verification","token":"your_token"}'
 

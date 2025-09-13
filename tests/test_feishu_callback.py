@@ -21,7 +21,7 @@ def test_challenge_verification():
     
     try:
         response = requests.post(
-            "http://localhost:8156/callback/feishu",
+            "http://localhost:8156/lark/callback",
             json=challenge_data,
             timeout=10
         )
@@ -79,7 +79,7 @@ def test_callback_button_click():
     
     try:
         response = requests.post(
-            "http://localhost:8156/callback/feishu",
+            "http://localhost:8156/lark/callback",
             json=callback_data,
             timeout=10
         )
@@ -110,7 +110,7 @@ def test_invalid_json():
     
     try:
         response = requests.post(
-            "http://localhost:8156/callback/feishu",
+            "http://localhost:8156/lark/callback",
             data="invalid json data",
             headers={"Content-Type": "application/json"},
             timeout=10

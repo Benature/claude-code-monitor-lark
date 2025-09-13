@@ -77,7 +77,6 @@ class FeishuNotifier:
                 if self.mode == "webhook" and self.webhook_url:
                     self.bot = LarkWebhook(self.webhook_url)
                 elif self.mode == "app" and self.app_id and self.app_secret:
-                    # 使用 LarkMessage 替代原生 requests
                     self.lark_message = LarkMessage(app_id=self.app_id,
                                                     app_secret=self.app_secret,
                                                     log_level='ERROR')
@@ -788,7 +787,6 @@ class FeishuNotifier:
 
             # 使用配置化的按钮
             button_actions = self._get_button_actions()
-            print(button_actions)
             if button_actions:
                 actions_element = {"tag": "action", "actions": button_actions}
                 card_message["card"]["elements"].append(actions_element)
