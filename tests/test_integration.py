@@ -14,30 +14,6 @@ from claude_scraper import ClaudeScraper
 from feishu_notifier import FeishuNotifier
 
 
-def create_mock_scraper():
-    """创建模拟爬虫类"""
-
-    class MockScraper:
-
-        def __init__(self, data_file):
-            self.data_file = data_file
-
-        def scrape_accounts(self):
-            """模拟爬取数据"""
-            # 读取测试数据
-            if os.path.exists(self.data_file):
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return None
-
-        def save_to_file(self, data, filename):
-            """保存数据到文件"""
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            print(f"数据已保存到: {filename}")
-
-    return MockScraper
-
 
 def test_integration_flow():
     """测试完整的集成流程"""

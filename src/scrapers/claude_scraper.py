@@ -96,14 +96,6 @@ class ClaudeScraper:
             print(f"错误：发生未知异常: {e}")
             return None
 
-    def get_rate_limit(self, data: Dict):
-        rateLimitStatus = data['data']['rateLimitStatus']
-        isRateLimited = rateLimitStatus['rateLimitStatus']
-        """{
-            "isRateLimited": true,
-            "rateLimitedAt": "2025-08-30T11:49:55.522Z",
-            "minutesRemaining": 22
-        }"""
 
     def save_to_file(self,
                      data: Dict[str, Any],

@@ -118,18 +118,6 @@ class ConfigManager:
         """获取服务器配置"""
         return self._config.get('server', {})
     
-    def get_storage_config(self) -> Dict[str, Any]:
-        """获取存储配置"""
-        return self._config.get('storage', {})
-    
-    def get_system_config(self) -> Dict[str, Any]:
-        """获取系统配置"""
-        return self._config.get('system', {})
-    
-    @property
-    def raw_config(self) -> Dict[str, Any]:
-        """获取原始配置字典"""
-        return self._config.copy()
 
 
 def create_config_manager(config_file: str = 'config.yaml') -> ConfigManager:
